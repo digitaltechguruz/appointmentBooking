@@ -1,0 +1,9 @@
+{
+  "name": "Appointment Booking",
+  "booking_widget": {
+    "name": "Appointment Booking"
+  },
+  "booking_embed": {
+    "name": "Appointment Booking Embed"
+  }
+}

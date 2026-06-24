@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "MeetingTypeKind" ADD VALUE IF NOT EXISTS 'GOOGLE_MEET';

@@ -1,0 +1,21 @@
+<div
+  id="ab-booking-widget-root"
+  class="ab-booking-widget"
+  data-ab-booking-widget="true"
+  data-shop="{{ shop.permanent_domain }}"
+  data-locale="{{ request.locale.iso_code }}"
+></div>
+
+{% schema %}
+{
+  "name": "Appointment Booking",
+  "target": "section",
+  "javascript": "booking-widget.js",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Customize widget text per language in Appointment Booking → Settings."
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,350 @@
+// Appointment Booking App - Prisma Schema
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Shopify session storage (required by @shopify/shopify-app-session-storage-prisma)
+// ---------------------------------------------------------------------------
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+
+  @@index([shop])
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum MeetingTypeKind {
+  ZOOM
+  GOOGLE_MEET
+  PHONE
+  WHATSAPP
+  IN_STORE
+  CUSTOM
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum SubscriptionPlan {
+  FREE
+  SHOPIFY_TEST
+  TEST
+  LEGACY_ACCESS
+  ANNUAL_PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  FROZEN
+  PENDING
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum AppLocale {
+  en
+  fr
+  de
+  nl
+  it
+  es
+  ru
+  ar
+}
+
+enum HoursTimeFormat {
+  HOUR_12
+  HOUR_24
+}
+
+enum WidgetTheme {
+  CLASSIC
+  MODERN
+}
+
+// ---------------------------------------------------------------------------
+// Core domain models
+// ---------------------------------------------------------------------------
+
+model Merchant {
+  id              String          @id @default(cuid())
+  shop            String          @unique
+  shopName        String?
+  timezone        String          @default("UTC")
+  email           String?
+  locale          AppLocale       @default(en)
+  hoursTimeFormat HoursTimeFormat @default(HOUR_24)
+  weekStartsOn    DayOfWeek       @default(SUNDAY)
+  widgetTheme     WidgetTheme     @default(CLASSIC)
+  widgetContent   Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  services          Service[]
+  meetingTypes      MeetingType[]
+  availabilityRules AvailabilityRule[]
+  closedDates       ClosedDate[]
+  bookings          Booking[]
+  customers         Customer[]
+  googleConnection  GoogleConnection?
+  zoomConnection    ZoomConnection?
+  subscription      Subscription?
+  translations      Translation[]
+
+  @@index([shop])
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  merchantId      String
+  name            String
+  description     String?
+  imageUrl        String?
+  durationMinutes Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  merchant     Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  meetingTypes ServiceMeetingType[]
+  bookings     Booking[]
+
+  @@index([merchantId])
+  @@index([merchantId, active])
+}
+
+model MeetingType {
+  id         String          @id @default(cuid())
+  merchantId String
+  name       String
+  subtitle   String?         // e.g. "Remote", "In-store"
+  description String?
+  type       MeetingTypeKind
+  videoLinkEnabled Boolean         @default(false)
+  imageUrl   String?
+  active     Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  merchant Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  services ServiceMeetingType[]
+  bookings Booking[]
+
+  @@index([merchantId])
+  @@index([merchantId, active])
+  @@index([merchantId, type])
+}
+
+model ServiceMeetingType {
+  serviceId     String
+  meetingTypeId String
+
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  meetingType MeetingType @relation(fields: [meetingTypeId], references: [id], onDelete: Cascade)
+
+  @@id([serviceId, meetingTypeId])
+  @@index([meetingTypeId])
+}
+
+model AvailabilityRule {
+  id         String    @id @default(cuid())
+  merchantId String
+  dayOfWeek  DayOfWeek
+  enabled    Boolean   @default(true)
+  startTime  String    // HH:mm (24h)
+  endTime    String    // HH:mm (24h)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, dayOfWeek])
+  @@index([merchantId])
+}
+
+model ClosedDate {
+  id           String   @id @default(cuid())
+  merchantId   String
+  date         DateTime @db.Date // range start
+  endDate      DateTime @db.Date // range end (same as date for a single day)
+  closedAllDay Boolean  @default(true)
+  startTime    String?  // HH:mm when closedAllDay is false (special hours)
+  endTime      String?  // HH:mm when closedAllDay is false (special hours)
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([merchantId, date, endDate])
+}
+
+model Customer {
+  id                String   @id @default(cuid())
+  merchantId        String
+  firstName         String
+  lastName          String
+  email             String
+  phone             String?
+  shopifyCustomerId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  merchant Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([merchantId])
+  @@index([merchantId, email])
+}
+
+model Booking {
+  id                    String        @id @default(cuid())
+  merchantId            String
+  serviceId             String
+  meetingTypeId         String
+  customerId            String
+  bookingDate           DateTime      @db.Date
+  startTime             String        // HH:mm (24h)
+  endTime               String        // HH:mm (24h)
+  status                BookingStatus @default(CONFIRMED)
+  note                  String?
+  zoomMeetingId         String?
+  zoomJoinUrl           String?
+  zoomStartUrl          String?
+  googleCalendarEventId String?
+  googleMeetUrl         String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  merchant    Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  meetingType MeetingType @relation(fields: [meetingTypeId], references: [id], onDelete: Restrict)
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([merchantId, bookingDate, startTime])
+  @@index([merchantId])
+  @@index([merchantId, status])
+  @@index([merchantId, serviceId])
+  @@index([merchantId, bookingDate])
+  @@index([merchantId, bookingDate, status])
+  @@index([customerId])
+  @@index([serviceId])
+  @@index([meetingTypeId])
+}
+
+// ---------------------------------------------------------------------------
+// Integrations
+// ---------------------------------------------------------------------------
+
+model GoogleConnection {
+  id             String    @id @default(cuid())
+  merchantId     String    @unique
+  accessToken    String    // encrypted at application layer
+  refreshToken   String    // encrypted at application layer
+  tokenExpiresAt DateTime?
+  calendarId     String?
+  email          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+}
+
+model ZoomConnection {
+  id             String    @id @default(cuid())
+  merchantId     String    @unique
+  accessToken    String    // encrypted at application layer
+  refreshToken   String    // encrypted at application layer
+  tokenExpiresAt DateTime?
+  accountId      String?
+  email          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Billing
+// ---------------------------------------------------------------------------
+
+model Subscription {
+  id                    String             @id @default(cuid())
+  merchantId            String             @unique
+  plan                  SubscriptionPlan   @default(FREE)
+  shopifySubscriptionId String?
+  status                SubscriptionStatus @default(ACTIVE)
+  billingInterval       BillingInterval?
+  currentPeriodEnd      DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([shopifySubscriptionId])
+}
+
+// ---------------------------------------------------------------------------
+// Translations
+// ---------------------------------------------------------------------------
+
+model Translation {
+  id         String    @id @default(cuid())
+  merchantId String
+  locale     AppLocale
+  key        String
+  value      String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, locale, key])
+  @@index([merchantId, locale])
+}

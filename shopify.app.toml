@@ -1,0 +1,380 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "95e480a4a1116281e35da572f76865b1"
+name = "Appointment Booking"
+application_url = "https://drums-edward-lobby-flags.trycloudflare.com/app"
+embedded = true
+
+[access_scopes]
+scopes = "write_products,read_customers,read_files,write_files,read_locales,read_metaobject_definitions,read_metaobjects,write_metaobject_definitions,write_metaobjects,read_translations,write_translations"
+
+[metaobjects.app.booking_widget_text]
+name = "Book appointment widget text"
+display_name_field = "language"
+
+  [metaobjects.app.booking_widget_text.capabilities]
+  translatable = true
+
+  [metaobjects.app.booking_widget_text.access]
+  admin = "merchant_read_write"
+  storefront = "public_read"
+
+
+
+[metaobjects.app.booking_widget_text.fields.language]
+name = "Widget language"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.title]
+name = "Widget title"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.subtitle]
+name = "Widget subtitle"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step1_title]
+name = "Step 1 heading"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step1_subtitle]
+name = "Step 1 description"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step2_title]
+name = "Step 2 heading"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step2_subtitle]
+name = "Step 2 description"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step3_intro]
+name = "Step 3 intro text"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step3_title]
+name = "Step 3 heading"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step3_subtitle]
+name = "Step 3 description"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step4_title]
+name = "Step 4 heading"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step4_subtitle]
+name = "Step 4 description"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step5_title]
+name = "Step 5 heading"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step5_subtitle]
+name = "Step 5 description"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.primary_button_text]
+name = "Confirm button text"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.confirmation_text]
+name = "Confirmation message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.first_name_label]
+name = "First name field label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.first_name_placeholder]
+name = "First name placeholder"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.last_name_label]
+name = "Last name field label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.last_name_placeholder]
+name = "Last name placeholder"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.email_label]
+name = "Email field label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.email_placeholder]
+name = "Email placeholder"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.phone_label]
+name = "Phone / WhatsApp field label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.country_region_label]
+name = "Country / region label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.phone_number_label]
+name = "Phone number label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.phone_placeholder]
+name = "Phone number placeholder"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.note_label]
+name = "Note field label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.note_placeholder]
+name = "Note placeholder"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.back_button]
+name = "Back button"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.next_button]
+name = "Next button"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.cancel_button]
+name = "Cancel button"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.confirming_button]
+name = "Confirming button text"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.available_times]
+name = "Available times heading"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.timezone_hint]
+name = "Timezone hint"
+type = "single_line_text_field"
+description = "Use {timezone} where the shopper's timezone should appear."
+
+[metaobjects.app.booking_widget_text.fields.select_date_first]
+name = "Select a date first message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.no_slots]
+name = "No available slots message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.minutes_label]
+name = "Minutes label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.loading_label]
+name = "Loading message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.loading_availability]
+name = "Loading availability message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.review_appointment_label]
+name = "Review: Appointment"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.review_datetime_label]
+name = "Review: Date and time"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.review_full_name_label]
+name = "Review: Full name"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.review_email_label]
+name = "Review: Email address"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.review_note_label]
+name = "Review: Note"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_services_title]
+name = "Stepper: Services title"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_services_subtitle]
+name = "Stepper: Services subtitle"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_meeting_title]
+name = "Stepper: Meeting type title"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_meeting_subtitle]
+name = "Stepper: Meeting type subtitle"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_calendar_title]
+name = "Stepper: Date and time title"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_calendar_subtitle]
+name = "Stepper: Date and time subtitle"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_details_title]
+name = "Stepper: Your details title"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_details_subtitle]
+name = "Stepper: Your details subtitle"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_review_title]
+name = "Stepper: Review title"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_review_subtitle]
+name = "Stepper: Review subtitle"
+type = "single_line_text_field"
+
+[metaobjects.app.dashboard_text]
+name = "Dashboard Text"
+display_name_field = "language"
+
+  [metaobjects.app.dashboard_text.capabilities]
+  translatable = true
+
+  [metaobjects.app.dashboard_text.access]
+  admin = "merchant_read_write"
+  storefront = "public_read"
+
+[metaobjects.app.dashboard_text.fields.language]
+name = "Dashboard language"
+type = "single_line_text_field"
+description = "Display name for this entry (set automatically from your Admin language)."
+
+[metaobjects.app.dashboard_text.fields.app]
+name = "App name"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.nav]
+name = "Navigation menu"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.common]
+name = "Shared buttons & labels"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.validation]
+name = "Validation messages"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.toast]
+name = "Success & error toasts"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.dashboard]
+name = "Dashboard page"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.services]
+name = "Services page"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.availability]
+name = "Availability page"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.meetingTypes]
+name = "Meeting types page"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.bookings]
+name = "Bookings page"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.settings]
+name = "Settings page"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.billing]
+name = "Billing page"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.languages]
+name = "Languages & translations"
+type = "multi_line_text_field"
+
+[metaobjects.app.dashboard_text.fields.banner]
+name = "Unsynced language banner"
+type = "multi_line_text_field"
+
+[metaobjects.app.booking_service_text]
+name = "Book appointment service text"
+display_name_field = "name"
+
+  [metaobjects.app.booking_service_text.capabilities]
+  translatable = true
+
+  [metaobjects.app.booking_service_text.access]
+  admin = "merchant_read_write"
+  storefront = "public_read"
+
+[metaobjects.app.booking_service_text.fields.name]
+name = "Service name"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_service_text.fields.description]
+name = "Description"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_meeting_type_text]
+name = "Book appointment meeting type text"
+display_name_field = "name"
+
+  [metaobjects.app.booking_meeting_type_text.capabilities]
+  translatable = true
+
+  [metaobjects.app.booking_meeting_type_text.access]
+  admin = "merchant_read_write"
+  storefront = "public_read"
+
+[metaobjects.app.booking_meeting_type_text.fields.name]
+name = "Name"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_meeting_type_text.fields.subtitle]
+name = "Subtitle"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_meeting_type_text.fields.description]
+name = "Description"
+type = "single_line_text_field"
+
+[app_proxy]
+url = "/api/proxy"
+subpath = "booking"
+prefix = "apps"
+
+[auth]
+redirect_urls = [
+  "https://drums-edward-lobby-flags.trycloudflare.com/auth/callback",
+  "https://drums-edward-lobby-flags.trycloudflare.com/auth/shopify/callback",
+  "https://drums-edward-lobby-flags.trycloudflare.com/auth/google/callback",
+  "https://drums-edward-lobby-flags.trycloudflare.com/auth/zoom/callback",
+]
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+[build]
+automatically_update_urls_on_dev = true

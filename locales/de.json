@@ -1,0 +1,167 @@
+{
+  "app": {
+    "name": "Appointment Booking"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "services": "Services",
+    "availability": "Availability",
+    "meetingTypes": "Meeting Types",
+    "bookings": "Bookings",
+    "settings": "Settings",
+    "billing": "Billing"
+  },
+  "common": {
+    "save": "Save",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "pleaseWait": "Please wait…"
+  },
+  "validation": {},
+  "toast": {
+    "storefrontThemeSaved": "Storefront theme saved",
+    "syncSuccess": "Widget text synced for {locale}.",
+    "syncFailed": "Failed to sync language",
+    "dashboardResetSuccess": "Dashboard text reset to defaults for {locale}.",
+    "dashboardResetFailed": "Failed to reset dashboard text",
+    "entryMissing": "Widget text entry is not ready yet.",
+    "translateAdaptFailed": "Could not open Translate & Adapt."
+  },
+  "dashboard": {
+    "pageTitle": "Appointment Booking",
+    "integrationsTitle": "Integrations",
+    "upcomingBookingsTitle": "Upcoming bookings"
+  },
+  "services": {
+    "pageTitle": "Services"
+  },
+  "availability": {
+    "pageTitle": "Availability"
+  },
+  "meetingTypes": {
+    "pageTitle": "Meeting Types"
+  },
+  "bookings": {
+    "pageTitle": "Bookings"
+  },
+  "settings": {
+    "pageTitle": "Settings",
+    "languagesTitle": "Languages",
+    "languagesDesc": "Manage storefront widget text and admin app copy for your store.",
+    "storeLanguagesTitle": "Storefront widget",
+    "storeLanguagesDesc": "Sync built-in copy for each published store language.",
+    "dashboardLanguagesDesc": "Customize navigation, buttons, and labels inside this app.",
+    "storefrontAppearanceTitle": "Storefront appearance",
+    "storefrontAppearanceDesc": "Choose how the booking widget looks on your storefront.",
+    "saveTheme": "Save theme",
+    "previewLabel": "Preview — step 1",
+    "themeClassic": "Classic",
+    "themeClassicDesc": "Elegant serif headings, refined borders, and a jewelry-showroom feel.",
+    "themeModern": "Modern",
+    "themeModernDesc": "Bold sans-serif type, rounded cards, and soft shadows for a clean look."
+  },
+  "billing": {
+    "pageTitle": "Billing"
+  },
+  "languages": {
+    "supportedTitle": "App-supported languages",
+    "supportedHelp": "Widget copy is stored in the Shopify metaobject {metaobjectName}. Use {sync} to load built-in text, or {edit} in Translate & Adapt.",
+    "widgetDefinitionName": "Book appointment widget text",
+    "syncTranslation": "Sync translation",
+    "resetTranslation": "Reset translation",
+    "editTranslation": "Edit translation",
+    "syncing": "Syncing…",
+    "synced": "Synced",
+    "notSynced": "Not synced",
+    "widgetText": "Widget text",
+    "badgePrimary": "Default store language",
+    "badgeSupported": "App-supported",
+    "badgeTranslateShopify": "Translate in Shopify",
+    "noLocalesDefault": "No published store languages found. Add languages in Shopify admin.",
+    "provisionRetry": "Re-open Settings after approving scopes if this persists.",
+    "dashboardLanguagesTitle": "Dashboard language",
+    "dashboardDefinitionName": "Dashboard Text",
+    "dashboardLanguageFieldName": "Dashboard language",
+    "dashboardLanguageFieldDescription": "Display name for this entry (set automatically from your Admin language).",
+    "dashboardLanguagesNotice": "App copy is stored in the {metaobjectName} metaobject and follows your Shopify Admin language ({locale}). Edit fields in Shopify or reset to built-in defaults.",
+    "dashboardAutoPopulated": "Ready",
+    "dashboardAdminLanguage": "Admin language",
+    "dashboardFieldsTitle": "What each field controls",
+    "dashboardEditHint": "In each field, edit only the text in quotes. Keep JSON keys unchanged.",
+    "openDashboardMetaobject": "Edit dashboard text",
+    "resetDashboardDefaults": "Reset to defaults",
+    "resettingDashboard": "Resetting…",
+    "lang": {
+      "en": "English",
+      "fr": "French",
+      "de": "German",
+      "nl": "Dutch",
+      "it": "Italian",
+      "es": "Spanish",
+      "ru": "Russian",
+      "ar": "Arabic"
+    },
+    "dashboardFields": {
+      "app": {
+        "label": "App name",
+        "description": "App title in the admin. Key: name"
+      },
+      "nav": {
+        "label": "Navigation menu",
+        "description": "Top menu links. Keys: dashboard, services, availability, meetingTypes, bookings, settings, billing"
+      },
+      "common": {
+        "label": "Shared buttons & labels",
+        "description": "Save, remove, and other labels used across pages."
+      },
+      "validation": {
+        "label": "Validation messages",
+        "description": "Error hints on forms."
+      },
+      "toast": {
+        "label": "Success & error toasts",
+        "description": "Short messages after save, sync, and other actions."
+      },
+      "dashboard": {
+        "label": "Dashboard page",
+        "description": "Home page headings and integration labels."
+      },
+      "services": {
+        "label": "Services page",
+        "description": "Service list and form copy."
+      },
+      "availability": {
+        "label": "Availability page",
+        "description": "Weekly hours and holidays copy."
+      },
+      "meetingTypes": {
+        "label": "Meeting types page",
+        "description": "Meeting type list and form copy."
+      },
+      "bookings": {
+        "label": "Bookings page",
+        "description": "Booking list and detail copy."
+      },
+      "settings": {
+        "label": "Settings page",
+        "description": "Store languages, theme picker, and preview copy."
+      },
+      "billing": {
+        "label": "Billing page",
+        "description": "Subscription status and plan copy."
+      },
+      "languages": {
+        "label": "Languages & translations",
+        "description": "Widget sync, dashboard edit, and help text on Settings."
+      },
+      "banner": {
+        "label": "Unsynced language banner",
+        "description": "Warning shown when widget text is not synced."
+      }
+    }
+  },
+  "banner": {
+    "unsyncedMessage": "Widget text is not synced for store languages: {names}. Open Settings to sync translations.",
+    "goToSettings": "Go to Settings"
+  }
+}

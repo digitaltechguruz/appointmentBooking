@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500&display=swap");
+
+/* Do NOT include @tailwind base — it injects global * rules that break theme sections. */
+@tailwind components;
+@tailwind utilities;
+
+#ab-booking-widget-root {
+  width: 100%;
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+  isolation: isolate;
+}
+
+#ab-booking-widget-root[data-ab-theme="modern"] .ab-modern-shell {
+  align-items: stretch;
+}
+
+#ab-booking-widget-root[data-ab-theme="modern"] .ab-modern-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  z-index: 2;
+}
+
+@media (min-width: 768px) {
+  #ab-booking-widget-root[data-ab-theme="modern"] .ab-modern-shell {
+    max-height: min(85dvh, 880px);
+    overflow: hidden;
+  }
+
+  #ab-booking-widget-root[data-ab-theme="modern"] .ab-modern-main {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+#ab-booking-widget-root,
+#ab-booking-widget-root * {
+  box-sizing: border-box;
+}
+
+#ab-booking-widget-root button {
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#ab-booking-widget-root img {
+  max-width: 100%;
+  height: auto;
+}
