@@ -5,6 +5,12 @@ import {
   parseDateString,
 } from "../lib/booking/time.server";
 import { buildStep3Subtitle } from "../lib/booking/working-hours-summary.server";
+import {
+  buildCalendarBounds,
+  getEffectiveBookingRules,
+  getMerchantBookingRules,
+} from "../lib/booking/booking-rules.server";
+import { hasPremiumAccess } from "./subscription.server";
 
 export async function getAvailabilityRules(merchantId: string) {
   return prisma.availabilityRule.findMany({
@@ -176,6 +182,7 @@ export async function getStorefrontConfig(
       options?: { variables?: Record<string, unknown> },
     ) => Promise<Response>;
   } | null,
+  serviceId?: string,
 ) {
   const merchant = await prisma.merchant.findUnique({
     where: { id: merchantId },
@@ -183,7 +190,9 @@ export async function getStorefrontConfig(
   });
   const [rules, closedDates] = await Promise.all([
     getAvailabilityRules(merchantId),
-    listClosedDates(merchantId),
+    hasPremiumAccess(merchantId).then((premium) =>
+      premium ? listClosedDates(merchantId) : Promise.resolve([]),
+    ),
   ]);
 
   const { resolveStorefrontWidgetSettings } = await import(
@@ -198,11 +207,20 @@ export async function getStorefrontConfig(
     admin,
   });
 
+  const timezone = merchant?.timezone ?? "UTC";
+  const bookingRules = serviceId
+    ? await getEffectiveBookingRules(merchantId, serviceId)
+    : await getMerchantBookingRules(merchantId);
+  const calendarBounds = buildCalendarBounds(timezone, bookingRules, {
+    openThroughNextMonth: bookingRules.openThroughNextMonth,
+  });
+
   return {
     workingHoursSummary: buildStep3Subtitle(rules, closedDates),
-    timezone: merchant?.timezone ?? "UTC",
+    timezone,
     widgetTheme,
     widgetSettings,
+    calendarBounds,
   };
 }
 

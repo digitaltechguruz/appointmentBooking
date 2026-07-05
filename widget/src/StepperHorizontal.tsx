@@ -5,16 +5,17 @@ type Props = {
   current: number;
   total: number;
   theme: WidgetThemeStyles;
+  ariaLabel?: string;
 };
 
-export function StepperHorizontal({ current, total, theme }: Props) {
+export function StepperHorizontal({ current, total, theme, ariaLabel }: Props) {
   const steps = Array.from({ length: total }, (_, i) => i + 1);
 
   return (
     <div
       className={cn(theme.stepperWrap, "mx-auto mb-10 w-full max-w-[540px] px-1")}
       role="navigation"
-      aria-label="Booking progress"
+      aria-label={ariaLabel ?? "Booking progress"}
     >
       <div className="flex items-center">
         {steps.map((n, idx) => {

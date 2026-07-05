@@ -18,9 +18,13 @@ import {
 } from "../lib/validation/schemas";
 import { getIntegrationStatus } from "../lib/integrations/status.server";
 import { showAppToast, useFetcherIdleResult } from "../lib/admin/toast";
+import { useAdminI18n } from "../lib/admin-i18n";
+import { createServerI18n } from "../lib/admin-i18n.server.js";
 import { ImageUploadField } from "../components/admin/ImageUploadField";
 import { CatalogTranslationsBanner } from "../components/admin/CatalogTranslationsBanner";
 import { CatalogEntityTranslations } from "../components/admin/CatalogEntityTranslations";
+import { ServiceAccordion } from "../components/admin/ServiceAccordion";
+import { ServiceModalShell } from "../components/admin/ServiceModalShell";
 import {
   loadCatalogTranslationsBanner,
   loadCatalogEntityTranslations,
@@ -67,6 +71,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { merchant, admin, session } = await requireAdminMerchant(request);
+  const { t } = await createServerI18n(request, session, {
+    admin,
+    shopDomain: session.shop,
+  });
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
@@ -107,7 +115,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const connections = await getIntegrationStatus(merchant.id);
   if (parsed.data.videoLinkEnabled && !connections.google && !connections.zoom) {
     return {
-      error: "Connect Google Calendar or Zoom under Integrations to enable video links.",
+      error: t("meetingTypes.connectIntegrationsFirst"),
     };
   }
 
@@ -140,10 +148,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   };
 };
 
-function meetingTypeSubtitle(mt: MeetingType) {
+function meetingTypeSubtitle(
+  mt: MeetingType,
+  t: (key: string) => string,
+) {
   if (mt.subtitle) return mt.subtitle;
-  if (meetingTypeHasVideoLink(mt)) return "Video link";
-  return "Standard";
+  if (meetingTypeHasVideoLink(mt)) return t("meetingTypes.videoLink");
+  return t("meetingTypes.standard");
 }
 
 function IconView() {
@@ -214,6 +225,7 @@ function MeetingTypeViewDrawer({
   onClose: () => void;
   onEdit: () => void;
 }) {
+  const { t } = useAdminI18n();
   const hasVideo = meetingTypeHasVideoLink(item);
 
   return (
@@ -230,7 +242,7 @@ function MeetingTypeViewDrawer({
           <button
             type="button"
             className="ab-services__icon-btn"
-            aria-label="Close"
+            aria-label={t("common.close")}
             onClick={onClose}
           >
             <IconClose />
@@ -249,22 +261,22 @@ function MeetingTypeViewDrawer({
           )}
 
           <div className="ab-services__detail-section">
-            <h3 className="ab-services__detail-heading">Details</h3>
+            <h3 className="ab-services__detail-heading">{t("meetingTypes.detailsHeading")}</h3>
             <div className="ab-services__detail-grid">
-              <DetailRow label="Name" value={item.name} />
-              <DetailRow label="Subtitle" value={item.subtitle} />
-              <DetailRow label="Description" value={item.description} />
+              <DetailRow label={t("common.name")} value={item.name} />
+              <DetailRow label={t("common.subtitle")} value={item.subtitle} />
+              <DetailRow label={t("common.description")} value={item.description} />
               <DetailRow
-                label="Video link"
-                value={hasVideo ? "Enabled" : "Off"}
+                label={t("meetingTypes.videoLink")}
+                value={hasVideo ? t("common.enabled") : t("common.off")}
               />
               <DetailRow
-                label="Status"
+                label={t("common.status")}
                 value={
                   <span
                     className={`ab-services__status ${item.active ? "ab-services__status--active" : "ab-services__status--inactive"}`}
                   >
-                    {item.active ? "Active" : "Inactive"}
+                    {item.active ? t("common.active") : t("common.inactive")}
                   </span>
                 }
               />
@@ -278,14 +290,14 @@ function MeetingTypeViewDrawer({
             className="ab-services__drawer-btn ab-services__drawer-btn--secondary"
             onClick={onClose}
           >
-            Close
+            {t("common.close")}
           </button>
           <button
             type="button"
             className="ab-services__drawer-btn ab-services__drawer-btn--primary"
             onClick={onEdit}
           >
-            Edit meeting type
+            {t("meetingTypes.editTitle")}
           </button>
         </div>
       </div>
@@ -298,6 +310,7 @@ function IntegrationStatusPanel({
 }: {
   integrations: IntegrationConnections;
 }) {
+  const { t } = useAdminI18n();
   return (
     <ul className="ab-services__integration-status">
       <li
@@ -307,13 +320,13 @@ function IntegrationStatusPanel({
             : "ab-services__integration--off"
         }
       >
-        Google Meet
+        {t("meetingTypes.googleMeet")}
         <span className="ab-services__integration-sep" aria-hidden>
           ·
         </span>
         {integrations.google
-          ? (integrations.googleEmail ?? "Connected")
-          : "Not connected"}
+          ? (integrations.googleEmail ?? t("common.connected"))
+          : t("common.notConnected")}
       </li>
       <li
         className={
@@ -322,13 +335,13 @@ function IntegrationStatusPanel({
             : "ab-services__integration--off"
         }
       >
-        Zoom
+        {t("dashboard.zoomTitle")}
         <span className="ab-services__integration-sep" aria-hidden>
           ·
         </span>
         {integrations.zoom
-          ? (integrations.zoomEmail ?? "Connected")
-          : "Not connected"}
+          ? (integrations.zoomEmail ?? t("common.connected"))
+          : t("common.notConnected")}
       </li>
     </ul>
   );
@@ -353,46 +366,58 @@ function MeetingTypeEditDrawer({
   catalogLoading?: boolean;
   metaobjectDefinitionName: string;
 }) {
+  const { t } = useAdminI18n();
   const isNew = item === null;
   const defaultVideoEnabled = item ? meetingTypeHasVideoLink(item) : false;
+  const canEnableVideo = integrations.google || integrations.zoom;
+  const formId = "meeting-type-edit-form";
+  const unsyncedCount =
+    catalogEntity?.localeRows.filter((row) => !row.synced && !row.primary).length ?? 0;
 
   return (
-    <div
-      className="ab-services__overlay"
-      role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="ab-services__drawer" role="dialog" aria-modal="true">
-        <div className="ab-services__drawer-header">
-          <h2 className="ab-services__drawer-title">
-            {isNew ? "Add meeting type" : "Edit meeting type"}
-          </h2>
+    <ServiceModalShell
+      title={isNew ? t("meetingTypes.addTitle") : t("meetingTypes.editTitle")}
+      subtitle={isNew ? t("meetingTypes.addSubtitle") : item?.name}
+      onClose={onClose}
+      footer={
+        <>
           <button
             type="button"
-            className="ab-services__icon-btn"
-            aria-label="Close"
+            className="ab-services__drawer-btn ab-services__drawer-btn--secondary"
             onClick={onClose}
           >
-            <IconClose />
+            {t("common.cancel")}
           </button>
-        </div>
+          <button
+            type="submit"
+            form={formId}
+            className="ab-services__drawer-btn ab-services__drawer-btn--primary"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? t("common.saving") : t("meetingTypes.saveMeetingType")}
+          </button>
+        </>
+      }
+    >
+      <fetcher.Form id={formId} method="post" className="ab-services__modal-form">
+        <input
+          type="hidden"
+          name="intent"
+          value={isNew ? "create" : "update"}
+        />
+        {!isNew && item && <input type="hidden" name="id" value={item.id} />}
+        <input type="hidden" name="type" value="CUSTOM" />
 
-        <fetcher.Form method="post" className="ab-services__drawer-form">
-          <input
-            type="hidden"
-            name="intent"
-            value={isNew ? "create" : "update"}
-          />
-          {!isNew && item && <input type="hidden" name="id" value={item.id} />}
-          <input type="hidden" name="type" value="CUSTOM" />
-
-          <div className="ab-services__drawer-body">
-            <div className="ab-services__form">
-              <div className="ab-services__form-field">
+        <div className="ab-services__modal-stack">
+          <ServiceAccordion
+            title={t("meetingTypes.sectionDetails")}
+            description={t("meetingTypes.sectionDetailsHint")}
+            defaultOpen
+          >
+            <div className="ab-services__form-grid">
+              <div className="ab-services__form-field ab-services__form-field--highlight ab-services__form-field--full">
                 <label className="ab-services__form-label" htmlFor="mt-name">
-                  Name
+                  {t("meetingTypes.fieldName")}
                 </label>
                 <input
                   id="mt-name"
@@ -403,117 +428,133 @@ function MeetingTypeEditDrawer({
                 />
               </div>
 
-              <div className="ab-services__form-field">
+              <div className="ab-services__form-field ab-services__form-field--highlight">
                 <label className="ab-services__form-label" htmlFor="mt-subtitle">
-                  Subtitle
+                  {t("meetingTypes.fieldSubtitle")}
                 </label>
                 <input
                   id="mt-subtitle"
                   className="ab-services__input"
                   name="subtitle"
-                  placeholder="e.g. Remote, In-store"
+                  placeholder={t("meetingTypes.subtitlePlaceholder")}
                   defaultValue={item?.subtitle ?? ""}
                 />
               </div>
 
-              <div className="ab-services__form-field">
+              <div className="ab-services__form-field ab-services__form-field--highlight ab-services__form-field--full">
                 <label className="ab-services__form-label" htmlFor="mt-desc">
-                  Description
+                  {t("meetingTypes.fieldDescription")}
                 </label>
                 <textarea
                   id="mt-desc"
                   className="ab-services__textarea"
                   name="description"
-                  placeholder="Shown on the booking widget card"
+                  placeholder={t("meetingTypes.descriptionPlaceholder")}
                   defaultValue={item?.description ?? ""}
                 />
               </div>
 
-              <ImageUploadField
-                key={item?.id ?? "new"}
-                defaultValue={item?.imageUrl}
-                label="Meeting type image"
-              />
-
-              <div className="ab-services__form-field">
-                <div className="ab-services__toggle-row">
-                  <label className="ab-toggle" htmlFor="mt-video">
-                    <input
-                      id="mt-video"
-                      type="checkbox"
-                      name="videoLinkEnabled"
-                      value="true"
-                      defaultChecked={defaultVideoEnabled}
-                    />
-                    <span className="ab-toggle__slider" />
-                  </label>
-                  <div className="ab-services__toggle-text">
-                    <p className="ab-services__toggle-title">Enable video link</p>
-                    <p className="ab-services__hint">
-                      Sends Zoom and/or Google Meet links after booking, based on
-                      what you have connected.
-                    </p>
-                  </div>
-                </div>
-                <IntegrationStatusPanel integrations={integrations} />
-                {!integrations.google && !integrations.zoom && (
-                  <p className="ab-services__hint ab-services__hint--spaced">
-                <Link to="/app" style={{ color: "#005bd3" }}>
-                      Connect an integration on the Dashboard
-                    </Link>{" "}
-                    to use video links.
-                  </p>
-                )}
+              <div className="ab-services__form-field--full">
+                <ImageUploadField
+                  key={item?.id ?? "new"}
+                  defaultValue={item?.imageUrl}
+                  label={t("meetingTypes.fieldImage")}
+                />
               </div>
 
-              <label className="ab-services__checkbox-row">
-                <input
-                  type="checkbox"
-                  name="active"
-                  value="true"
-                  defaultChecked={item?.active ?? true}
-                />
-                Active on storefront
-              </label>
-            </div>
+              <div className="ab-services__form-field ab-services__form-field--full">
+                <span className="ab-services__form-label">{t("meetingTypes.fieldVideo")}</span>
+                <div className="ab-services__detail-card">
+                  <div className="ab-services__toggle-row">
+                    <label
+                      className={`ab-toggle${!canEnableVideo ? " ab-toggle--disabled" : ""}`}
+                      htmlFor="mt-video"
+                    >
+                      <input
+                        id="mt-video"
+                        type="checkbox"
+                        name={canEnableVideo ? "videoLinkEnabled" : undefined}
+                        value="true"
+                        defaultChecked={defaultVideoEnabled && canEnableVideo}
+                        disabled={!canEnableVideo}
+                      />
+                      <span className="ab-toggle__slider" />
+                    </label>
+                    <div className="ab-services__toggle-text">
+                      <p className="ab-services__toggle-title">{t("meetingTypes.enableVideoTitle")}</p>
+                      <p className="ab-services__hint">
+                        {canEnableVideo
+                          ? t("meetingTypes.enableVideoHintConnected")
+                          : t("meetingTypes.enableVideoHintDisconnected")}
+                      </p>
+                    </div>
+                  </div>
+                  <IntegrationStatusPanel integrations={integrations} />
+                  {!canEnableVideo && (
+                    <>
+                      <p className="ab-services__hint ab-services__hint--spaced">
+                        <Link to="/app" style={{ color: "#005bd3" }}>
+                          {t("meetingTypes.goToDashboardBefore")}
+                        </Link>{" "}
+                        {t("meetingTypes.goToDashboardAfter")}
+                      </p>
+                      <input type="hidden" name="videoLinkEnabled" value="false" />
+                    </>
+                  )}
+                </div>
+              </div>
 
-            {!isNew ? (
-              catalogLoading ? (
-                <p className="ab-services__hint">Loading translations…</p>
+              <div className="ab-services__form-field ab-services__form-field--highlight ab-services__form-field--full">
+                <span className="ab-services__form-label">{t("meetingTypes.fieldStatus")}</span>
+                <label className="ab-services__checkbox-row ab-services__detail-card">
+                  <input
+                    type="checkbox"
+                    name="active"
+                    value="true"
+                    defaultChecked={item?.active ?? true}
+                  />
+                  {t("meetingTypes.activeOnStorefront")}
+                </label>
+              </div>
+            </div>
+          </ServiceAccordion>
+
+          {!isNew ? (
+            <ServiceAccordion
+              title={t("meetingTypes.sectionTranslations")}
+              description={t("meetingTypes.sectionTranslationsHint")}
+              badge={
+                unsyncedCount > 0 ? (
+                  <span>{unsyncedCount}</span>
+                ) : undefined
+              }
+            >
+              {catalogLoading ? (
+                <p className="ab-services__hint">{t("meetingTypes.loadingTranslations")}</p>
               ) : (
                 <CatalogEntityTranslations
                   entity={catalogEntity}
                   metaobjectDefinitionName={metaobjectDefinitionName}
+                  embedded
+                  translatableFieldLabels={[
+                    t("meetingTypes.fieldName"),
+                    t("meetingTypes.fieldSubtitle"),
+                    t("meetingTypes.fieldDescription"),
+                  ]}
                 />
-              )
-            ) : null}
-          </div>
-
-          <div className="ab-services__drawer-footer">
-            <button
-              type="button"
-              className="ab-services__drawer-btn ab-services__drawer-btn--secondary"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="ab-services__drawer-btn ab-services__drawer-btn--primary"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Saving…" : "Save meeting type"}
-            </button>
-          </div>
-        </fetcher.Form>
-      </div>
-    </div>
+              )}
+            </ServiceAccordion>
+          ) : null}
+        </div>
+      </fetcher.Form>
+    </ServiceModalShell>
   );
 }
 
 export default function MeetingTypesPage() {
   const { meetingTypes, integrations, catalogTranslations } =
     useLoaderData<typeof loader>();
+  const { t } = useAdminI18n();
   const fetcher = useFetcher<typeof action>();
   const catalogFetcher = useFetcher<typeof loader>();
   const revalidator = useRevalidator();
@@ -555,15 +596,17 @@ export default function MeetingTypesPage() {
       if ("action" in data && data.action === "deactivated") {
         showAppToast(
           shopify,
-          `Cannot delete — ${"bookingCount" in data ? data.bookingCount : 0} booking(s) use this type. It was deactivated instead.`,
+          t("meetingTypes.deactivateInstead", {
+            count: "bookingCount" in data ? data.bookingCount : 0,
+          }),
           { isError: true },
         );
       } else if ("action" in data && data.action === "deleted") {
-        showAppToast(shopify, "Meeting type deleted");
+        showAppToast(shopify, t("toast.meetingTypeDeleted"));
         setViewId(null);
         setEditId(null);
       } else {
-        showAppToast(shopify, "Meeting type saved");
+        showAppToast(shopify, t("toast.meetingTypeSaved"));
         if (
           "metaobjectError" in data &&
           typeof data.metaobjectError === "string"
@@ -579,7 +622,7 @@ export default function MeetingTypesPage() {
       const message =
         typeof data.error === "string"
           ? data.error
-          : "Could not save meeting type";
+          : t("toast.meetingTypeSaveFailed");
       showAppToast(shopify, message, { isError: true });
     }
   });
@@ -608,7 +651,7 @@ export default function MeetingTypesPage() {
   }
 
   return (
-    <s-page heading="Meeting Types">
+    <s-page heading={t("meetingTypes.pageTitle")}>
       <CatalogTranslationsBanner
         unsyncedLocaleLabels={catalogTranslations.unsyncedLocaleLabels}
         metaobjectDefinitionName={catalogTranslations.metaobjectDefinitionName}
@@ -618,25 +661,25 @@ export default function MeetingTypesPage() {
         <div className="ab-services__stats">
           <div className="ab-services__stat">
             <div className="ab-services__stat-value">{stats.total}</div>
-            <div className="ab-services__stat-label">Total types</div>
+            <div className="ab-services__stat-label">{t("meetingTypes.statTotal")}</div>
           </div>
           <div className="ab-services__stat ab-services__stat--active">
             <div className="ab-services__stat-value">{stats.active}</div>
-            <div className="ab-services__stat-label">Active</div>
+            <div className="ab-services__stat-label">{t("meetingTypes.statActive")}</div>
           </div>
           <div className="ab-services__stat ab-services__stat--inactive">
             <div className="ab-services__stat-value">{stats.inactive}</div>
-            <div className="ab-services__stat-label">Inactive</div>
+            <div className="ab-services__stat-label">{t("meetingTypes.statInactive")}</div>
           </div>
         </div>
 
         <div className="ab-services__panel">
           <div className="ab-services__toolbar">
-            <p className="ab-services__toolbar-title">Meeting types</p>
+            <p className="ab-services__toolbar-title">{t("meetingTypes.toolbarTitle")}</p>
             <div className="ab-services__toolbar-actions">
               <div className="ab-services__field">
                 <label className="ab-services__label" htmlFor="filter-status">
-                  Status
+                  {t("common.status")}
                 </label>
                 <select
                   id="filter-status"
@@ -646,9 +689,9 @@ export default function MeetingTypesPage() {
                     setStatusFilter(e.target.value as "" | "active" | "inactive")
                   }
                 >
-                  <option value="">All statuses</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="">{t("common.allStatuses")}</option>
+                  <option value="active">{t("common.active")}</option>
+                  <option value="inactive">{t("common.inactive")}</option>
                 </select>
               </div>
               <button
@@ -656,20 +699,27 @@ export default function MeetingTypesPage() {
                 className="ab-services__btn-primary"
                 onClick={() => openEdit("new")}
               >
-                Add meeting type
+                {t("meetingTypes.addMeetingType")}
               </button>
             </div>
           </div>
 
           <div className="ab-services__summary">
-            Showing {filteredItems.length} of {stats.total} meeting type
-            {stats.total === 1 ? "" : "s"}
+            {stats.total === 1
+              ? t("meetingTypes.summaryShowing", {
+                  count: filteredItems.length,
+                  total: stats.total,
+                })
+              : t("meetingTypes.summaryShowingPlural", {
+                  count: filteredItems.length,
+                  total: stats.total,
+                })}
             {" · "}
-            Link types to services on the{" "}
+            {t("meetingTypes.summaryLinkBefore")}{" "}
             <Link to="/app/services" style={{ color: "#005bd3" }}>
-              Services
+              {t("nav.services")}
             </Link>{" "}
-            page.
+            {t("meetingTypes.summaryLinkAfter")}
           </div>
 
           {filteredItems.length === 0 ? (
@@ -678,12 +728,12 @@ export default function MeetingTypesPage() {
                 📹
               </div>
               <h3 className="ab-services__empty-title">
-                {statusFilter ? "No types match your filter" : "No meeting types yet"}
+                {statusFilter ? t("meetingTypes.emptyFilteredTitle") : t("meetingTypes.emptyTitle")}
               </h3>
               <p className="ab-services__empty-text">
                 {statusFilter
-                  ? "Try changing the status filter."
-                  : "Create how customers can meet you — video call, phone, in-store, or custom."}
+                  ? t("meetingTypes.emptyFilteredText")
+                  : t("meetingTypes.emptyText")}
               </p>
               {!statusFilter && (
                 <button
@@ -691,7 +741,7 @@ export default function MeetingTypesPage() {
                   className="ab-services__btn-primary"
                   onClick={() => openEdit("new")}
                 >
-                  Add your first meeting type
+                  {t("meetingTypes.addFirstMeetingType")}
                 </button>
               )}
             </div>
@@ -699,10 +749,10 @@ export default function MeetingTypesPage() {
             <table className="ab-services-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Subtitle / type</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th>{t("common.name")}</th>
+                  <th>{t("meetingTypes.tableSubtitle")}</th>
+                  <th>{t("common.status")}</th>
+                  <th>{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -718,12 +768,12 @@ export default function MeetingTypesPage() {
                         </div>
                       )}
                     </td>
-                    <td>{meetingTypeSubtitle(mt)}</td>
+                    <td>{meetingTypeSubtitle(mt, t)}</td>
                     <td>
                       <span
                         className={`ab-services__status ${mt.active ? "ab-services__status--active" : "ab-services__status--inactive"}`}
                       >
-                        {mt.active ? "Active" : "Inactive"}
+                        {mt.active ? t("common.active") : t("common.inactive")}
                       </span>
                     </td>
                     <td>
@@ -731,8 +781,8 @@ export default function MeetingTypesPage() {
                         <button
                           type="button"
                           className="ab-services__icon-btn ab-services__icon-btn--view"
-                          aria-label="View meeting type"
-                          title="View details"
+                          aria-label={t("meetingTypes.viewMeetingType")}
+                          title={t("common.viewDetails")}
                           onClick={() => {
                             setEditId(null);
                             setViewId(mt.id);
@@ -743,8 +793,8 @@ export default function MeetingTypesPage() {
                         <button
                           type="button"
                           className="ab-services__icon-btn ab-services__icon-btn--edit"
-                          aria-label="Edit meeting type"
-                          title="Edit"
+                          aria-label={t("meetingTypes.editMeetingType")}
+                          title={t("common.edit")}
                           onClick={() => openEdit(mt.id)}
                         >
                           <IconEdit />
@@ -755,13 +805,13 @@ export default function MeetingTypesPage() {
                           <button
                             type="submit"
                             className="ab-services__icon-btn ab-services__icon-btn--delete"
-                            aria-label="Delete meeting type"
-                            title="Delete"
+                            aria-label={t("meetingTypes.deleteMeetingType")}
+                            title={t("common.delete")}
                             disabled={isSubmitting}
                             onClick={(e) => {
                               if (
                                 !confirm(
-                                  `Delete "${mt.name}"? If bookings exist for this type, it will be deactivated instead.`,
+                                  t("meetingTypes.deleteConfirm", { name: mt.name }),
                                 )
                               ) {
                                 e.preventDefault();

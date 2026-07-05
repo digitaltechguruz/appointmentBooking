@@ -3,7 +3,7 @@ import type { BookingStatus } from "@prisma/client";
 import { BILLING_PLANS } from "../lib/constants";
 import { parseDateString, formatDateString } from "../lib/booking/time.server";
 import { getService } from "./service.server";
-import { getMeetingType, listMeetingTypesForService } from "./meeting-type.server";
+import { getMeetingType, listMeetingTypesForService, listStorefrontMeetingTypesForService } from "./meeting-type.server";
 import {
   getAvailabilityRules,
   isDateClosed,
@@ -13,6 +13,8 @@ import {
 } from "./availability.server";
 import { findOrCreateCustomer } from "./customer.server";
 import { getMerchantTimezone, ensureMerchantShopInfo } from "./merchant.server";
+import { getEffectiveBookingRules } from "../lib/booking/booking-rules.server";
+import { hasPremiumAccess } from "./subscription.server";
 import { todayInTimezone } from "../lib/booking/timezone";
 import {
   generateAvailableSlots,
@@ -28,7 +30,7 @@ import {
   getGoogleConnection,
 } from "../lib/integrations/google/calendar.server";
 import { createZoomMeeting, deleteZoomMeeting } from "../lib/integrations/zoom/meetings.server";
-import { getIntegrationConnections } from "../lib/integrations/status.server";
+import { getIntegrationConnections, isMeetingTypeIntegrationAvailable } from "../lib/integrations/status.server";
 import { meetingTypeHasVideoLink } from "../lib/constants";
 import type { BookingWithRelations } from "../types/admin";
 
@@ -176,12 +178,18 @@ export async function getAvailableSlots(
   const service = await getService(merchantId, serviceId);
   if (!service?.active) return [];
 
-  const timeZone = await getMerchantTimezone(merchantId);
+  const [timeZone, rules, bookingRules] = await Promise.all([
+    getMerchantTimezone(merchantId),
+    getAvailabilityRules(merchantId),
+    getEffectiveBookingRules(merchantId, serviceId),
+  ]);
   const date = parseDateString(dateStr);
-  if (await isDateClosed(merchantId, date)) return [];
+  const holidaysEnabled = await hasPremiumAccess(merchantId);
+  if (holidaysEnabled && (await isDateClosed(merchantId, date))) return [];
 
-  const rules = await getAvailabilityRules(merchantId);
-  const holidayOverride = await getHolidayOverrideForDate(merchantId, date);
+  const holidayOverride = holidaysEnabled
+    ? await getHolidayOverrideForDate(merchantId, date)
+    : null;
   const bookings = await prisma.booking.findMany({
     where: {
       merchantId,
@@ -203,6 +211,7 @@ export async function getAvailableSlots(
             endTime: holidayOverride.endTime,
           }
         : undefined,
+    bookingRules,
   });
 }
 
@@ -217,22 +226,22 @@ export async function getMonthAvailability(
     return { availableDates: [], unavailableDates: [], closedDates: [] };
   }
 
-  const timeZone = await getMerchantTimezone(merchantId);
-  const rules = await getAvailabilityRules(merchantId);
+  const [timeZone, rules, bookingRules] = await Promise.all([
+    getMerchantTimezone(merchantId),
+    getAvailabilityRules(merchantId),
+    getEffectiveBookingRules(merchantId, serviceId),
+  ]);
   const startDate = parseDateString(`${month}-01`);
   const endDate = new Date(Date.UTC(year, monthNum, 0));
 
-  const closedSet = await getClosedDateSetForRange(
-    merchantId,
-    startDate,
-    endDate,
-  );
+  const holidaysEnabled = await hasPremiumAccess(merchantId);
+  const closedSet = holidaysEnabled
+    ? await getClosedDateSetForRange(merchantId, startDate, endDate)
+    : new Set<string>();
 
-  const holidayRanges = await getClosedDatesInRange(
-    merchantId,
-    startDate,
-    endDate,
-  );
+  const holidayRanges = holidaysEnabled
+    ? await getClosedDatesInRange(merchantId, startDate, endDate)
+    : [];
   const specialHoursByDate = new Map<
     string,
     { startTime: string; endTime: string }
@@ -269,6 +278,7 @@ export async function getMonthAvailability(
     closedDates: closedSet,
     specialHoursByDate,
     minDate: todayInTimezone(timeZone),
+    bookingRules,
   });
 }
 
@@ -342,7 +352,23 @@ export async function createBooking(
     throw new BookingError("Meeting type is not available", "MEETING_TYPE_INACTIVE");
   }
 
-  const linkedTypes = await listMeetingTypesForService(
+  if (meetingTypeHasVideoLink(meetingType)) {
+    const [premium, connections] = await Promise.all([
+      hasPremiumAccess(merchantId),
+      getIntegrationConnections(merchantId),
+    ]);
+    if (
+      !premium ||
+      !isMeetingTypeIntegrationAvailable(meetingType, connections)
+    ) {
+      throw new BookingError(
+        "This meeting type is not available. Upgrade to Pro and connect Zoom or Google Calendar to offer video calls.",
+        "MEETING_TYPE_UNAVAILABLE",
+      );
+    }
+  }
+
+  const linkedTypes = await listStorefrontMeetingTypesForService(
     merchantId,
     input.serviceId,
   );

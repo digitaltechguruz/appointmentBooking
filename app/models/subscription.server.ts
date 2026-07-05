@@ -1,5 +1,7 @@
 import prisma from "../db.server";
 import type { SubscriptionPlan, SubscriptionStatus, BillingInterval } from "@prisma/client";
+import { INTEGRATIONS_PREMIUM_MESSAGE } from "../lib/constants";
+import { isPremiumPlan, planHandleToDb } from "../lib/billing/plans.shared";
 
 export async function syncSubscription(
   merchantId: string,
@@ -22,19 +24,16 @@ export async function getSubscription(merchantId: string) {
   return prisma.subscription.findUnique({ where: { merchantId } });
 }
 
+/** Map Shopify App Pricing plan handle or subscription name to DB plan. */
 export function mapBillingPlanToDb(planKey: string): SubscriptionPlan {
-  const map: Record<string, SubscriptionPlan> = {
-    "Annual Premium": "ANNUAL_PREMIUM",
-    "Shopify Test": "SHOPIFY_TEST",
-    Test: "TEST",
-    "Legacy Access": "LEGACY_ACCESS",
-    Free: "FREE",
-  };
-  return map[planKey] ?? "FREE";
+  return planHandleToDb(planKey);
 }
 
 export async function hasPremiumAccess(merchantId: string): Promise<boolean> {
   const sub = await getSubscription(merchantId);
-  if (!sub || sub.status !== "ACTIVE") return false;
-  return ["ANNUAL_PREMIUM", "LEGACY_ACCESS", "SHOPIFY_TEST", "TEST"].includes(sub.plan);
+  if (!sub) return false;
+  if (!["ACTIVE", "PENDING"].includes(sub.status)) return false;
+  return isPremiumPlan(sub.plan);
 }
+
+export const PREMIUM_REQUIRED_MESSAGE = INTEGRATIONS_PREMIUM_MESSAGE;

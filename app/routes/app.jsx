@@ -3,16 +3,48 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
+import { getOrCreateMerchant } from "../models/merchant.server";
+import { syncMerchantSubscriptionFromShopify } from "../lib/billing/billing.server";
 import { useAppHref, useEmbeddedUrlCleanup } from "../lib/useAppHref";
-import { loadAdminMessages, resolveAdminLocale } from "../lib/admin-i18n.server.js";
+import { loadAdminMessages, loadBundledAdminMessages, resolveAdminLocale } from "../lib/admin-i18n.server.js";
 import { AdminI18nProvider, useAdminI18n } from "../lib/admin-i18n";
 import { AdminLocaleSync } from "../components/admin/AdminLocaleSync";
 import { UnsyncedLanguagesBanner } from "../components/admin/UnsyncedLanguagesBanner";
 import "../components/admin/dashboard.css";
 
 export const loader = async ({ request }) => {
-  const { session, admin } = await authenticate.admin(request);
+  const { session, admin, billing } = await authenticate.admin(request);
+  const merchant = await getOrCreateMerchant(session.shop);
+
+  try {
+    await syncMerchantSubscriptionFromShopify(
+      merchant.id,
+      request,
+      billing,
+      admin,
+    );
+  } catch (error) {
+    console.warn("[app] billing sync:", error?.message || error);
+  }
+
   const adminLocale = resolveAdminLocale(request, session);
+
+  if (admin?.graphql) {
+    try {
+      const { ensureDashboardMessagesForAdminLocale } = await import(
+        "../lib/dashboard/dashboard-i18n-metaobject.server.js"
+      );
+      await ensureDashboardMessagesForAdminLocale(
+        admin,
+        session.shop,
+        adminLocale,
+      );
+    } catch (error) {
+      console.warn("[app] dashboard locale sync:", error?.message || error);
+    }
+  }
+
+  const bundledMessages = await loadBundledAdminMessages(adminLocale);
   const adminMessages = await loadAdminMessages(adminLocale, {
     admin,
     shopDomain: session.shop,
@@ -28,8 +60,11 @@ export const loader = async ({ request }) => {
       });
 
     void import("../lib/widget/booking-widget-i18n-metaobject.server.js")
-      .then(({ syncWidgetDefinitionLabels }) =>
-        syncWidgetDefinitionLabels(admin, adminLocale, session.shop),
+      .then(({ syncWidgetDefinitionLabels, ensureWidgetTextContentPopulated }) =>
+        Promise.all([
+          syncWidgetDefinitionLabels(admin, adminLocale, session.shop),
+          ensureWidgetTextContentPopulated(admin, session.shop),
+        ]),
       )
       .catch((error) => {
         console.warn("[app] widget definition labels:", error?.message || error);
@@ -52,6 +87,7 @@ export const loader = async ({ request }) => {
     apiKey: process.env.SHOPIFY_API_KEY || "",
     adminLocale,
     adminMessages,
+    bundledMessages,
     unsyncedLocales,
   };
 };
@@ -85,12 +121,17 @@ function AppNav() {
 }
 
 export default function App() {
-  const { apiKey, adminLocale, adminMessages, unsyncedLocales } = useLoaderData();
+  const { apiKey, adminLocale, adminMessages, bundledMessages, unsyncedLocales } =
+    useLoaderData();
   useEmbeddedUrlCleanup();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
-      <AdminI18nProvider locale={adminLocale} messages={adminMessages}>
+      <AdminI18nProvider
+        locale={adminLocale}
+        messages={adminMessages}
+        fallbackMessages={bundledMessages}
+      >
         <AdminLocaleSync serverLocale={adminLocale} />
         <AppNav />
         <div className="ab-app-shell">

@@ -36,6 +36,8 @@ async function loadBundledAdminMessages(locale) {
   return messages;
 }
 
+export { loadBundledAdminMessages };
+
 export async function loadAdminMessages(locale, options = {}) {
   const normalized = normalizeAdminLocale(locale);
   const { admin, shopDomain } = options;
@@ -78,10 +80,11 @@ export function createAdminTranslator(messages, fallbackMessages = en) {
 /** Server-side translator for loaders and actions. */
 export async function createServerI18n(request, session, options = {}) {
   const locale = resolveAdminLocale(request, session);
+  const bundled = await loadBundledAdminMessages(locale);
   const messages = await loadAdminMessages(locale, {
     admin: options.admin,
     shopDomain: options.shopDomain || session?.shop,
   });
-  const t = createAdminTranslator(messages);
+  const t = createAdminTranslator(messages, bundled);
   return { locale, messages, t };
 }

@@ -21,16 +21,19 @@ function getByPath(obj: Record<string, unknown> | null | undefined, path: string
 export function AdminI18nProvider({
   locale,
   messages,
+  fallbackMessages = en,
   children,
 }: {
   locale: string;
   messages: Record<string, unknown>;
+  fallbackMessages?: Record<string, unknown>;
   children: React.ReactNode;
 }) {
   const value = useMemo(() => {
     function t(key: string, vars: Record<string, unknown> = {}): string {
       let text =
         getByPath(messages, key) ??
+        getByPath(fallbackMessages, key) ??
         getByPath(en as Record<string, unknown>, key) ??
         key;
       if (typeof text !== "string") return key;
@@ -41,7 +44,7 @@ export function AdminI18nProvider({
     }
 
     return { locale, messages, t };
-  }, [locale, messages]);
+  }, [locale, messages, fallbackMessages]);
 
   useEffect(() => {
     if (typeof document !== "undefined" && locale) {

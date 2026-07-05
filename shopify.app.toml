@@ -2,11 +2,12 @@
 
 client_id = "95e480a4a1116281e35da572f76865b1"
 name = "Appointment Booking"
-application_url = "https://drums-edward-lobby-flags.trycloudflare.com/app"
+handle = "appointment-booking-26"
+application_url = "https://updating-lie-bye-fantastic.trycloudflare.com/app"
 embedded = true
 
 [access_scopes]
-scopes = "write_products,read_customers,read_files,write_files,read_locales,read_metaobject_definitions,read_metaobjects,write_metaobject_definitions,write_metaobjects,read_translations,write_translations"
+scopes = "write_products,read_customers,read_files,write_files,read_locales,read_metaobject_definitions,read_metaobjects,write_metaobject_definitions,write_metaobjects,read_translations,write_translations,read_themes"
 
 [metaobjects.app.booking_widget_text]
 name = "Book appointment widget text"
@@ -158,6 +159,10 @@ name = "Timezone hint"
 type = "single_line_text_field"
 description = "Use {timezone} where the shopper's timezone should appear."
 
+[metaobjects.app.booking_widget_text.fields.timezone_label]
+name = "Time zone label"
+type = "single_line_text_field"
+
 [metaobjects.app.booking_widget_text.fields.select_date_first]
 name = "Select a date first message"
 type = "single_line_text_field"
@@ -176,6 +181,96 @@ type = "single_line_text_field"
 
 [metaobjects.app.booking_widget_text.fields.loading_availability]
 name = "Loading availability message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.calendar_past_limit]
+name = "Calendar past limit message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.calendar_future_limit]
+name = "Calendar future limit message"
+type = "single_line_text_field"
+description = "Use {range} for the booking window label."
+
+[metaobjects.app.booking_widget_text.fields.calendar_future_limit_generic]
+name = "Calendar furthest date message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.calendar_no_dates]
+name = "No dates this month message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.calendar_load_error]
+name = "Calendar load error message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.no_meeting_types]
+name = "No meeting types message"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.book_another]
+name = "Book another appointment button"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.previous_month]
+name = "Previous month (accessibility)"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.next_month]
+name = "Next month (accessibility)"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.stepper_aria_label]
+name = "Stepper progress (accessibility)"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.country_code_aria]
+name = "Country code select (accessibility)"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.popular_countries]
+name = "Popular countries group label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.all_countries]
+name = "All countries group label"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.error_load_widget]
+name = "Widget load error"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.error_booking_failed]
+name = "Booking failed error"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.error_empty_response]
+name = "Empty booking response error"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.error_unexpected_page]
+name = "Unexpected page response error"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.error_read_response]
+name = "Unreadable confirmation response error"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.error_incomplete_response]
+name = "Incomplete booking response error"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.error_request_failed]
+name = "Generic request failed error"
+type = "single_line_text_field"
+
+[metaobjects.app.booking_widget_text.fields.step_progress]
+name = "Step progress badge"
+type = "single_line_text_field"
+description = "Use {step} and {total} for the current step number."
+
+[metaobjects.app.booking_widget_text.fields.preview_banner]
+name = "Storefront preview banner"
 type = "single_line_text_field"
 
 [metaobjects.app.booking_widget_text.fields.review_appointment_label]
@@ -359,10 +454,10 @@ prefix = "apps"
 
 [auth]
 redirect_urls = [
-  "https://drums-edward-lobby-flags.trycloudflare.com/auth/callback",
-  "https://drums-edward-lobby-flags.trycloudflare.com/auth/shopify/callback",
-  "https://drums-edward-lobby-flags.trycloudflare.com/auth/google/callback",
-  "https://drums-edward-lobby-flags.trycloudflare.com/auth/zoom/callback",
+  "https://updating-lie-bye-fantastic.trycloudflare.com/auth/callback",
+  "https://updating-lie-bye-fantastic.trycloudflare.com/auth/shopify/callback",
+  "https://updating-lie-bye-fantastic.trycloudflare.com/google/callback",
+  "https://updating-lie-bye-fantastic.trycloudflare.com/auth/zoom/callback",
 ]
 
 [webhooks]

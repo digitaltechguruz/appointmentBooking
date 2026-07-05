@@ -1,5 +1,6 @@
 import prisma from "../../../db.server";
 import { encrypt, decrypt } from "../../security/encryption.server";
+import { getGoogleRedirectUri } from "../oauth-config.server";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -10,7 +11,12 @@ const SCOPES = [
 ].join(" ");
 
 export function getGoogleAuthUrl(merchantId: string, shop: string) {
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI!;
+  const redirectUri = getGoogleRedirectUri();
+  if (!redirectUri) {
+    throw new Error(
+      "Google redirect URL is missing. Set SHOPIFY_APP_URL in .env (updated by shopify app dev).",
+    );
+  }
   const state = Buffer.from(JSON.stringify({ merchantId, shop })).toString("base64url");
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID ?? "",
@@ -25,6 +31,7 @@ export function getGoogleAuthUrl(merchantId: string, shop: string) {
 }
 
 export async function handleGoogleCallback(code: string, merchantId: string) {
+  const redirectUri = getGoogleRedirectUri();
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -32,7 +39,7 @@ export async function handleGoogleCallback(code: string, merchantId: string) {
       code,
       client_id: process.env.GOOGLE_CLIENT_ID ?? "",
       client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI ?? "",
+      redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }),
   });

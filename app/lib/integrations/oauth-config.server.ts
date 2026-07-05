@@ -18,17 +18,15 @@ export function getAppBaseUrl() {
 }
 
 export function getZoomRedirectUri() {
-  const explicit = process.env.ZOOM_REDIRECT_URI?.trim();
-  if (explicit) return explicit;
   const base = getAppBaseUrl();
-  return base ? `${base}/auth/zoom/callback` : "";
+  if (base) return `${base}/auth/zoom/callback`;
+  return process.env.ZOOM_REDIRECT_URI?.trim() || "";
 }
 
 export function getGoogleRedirectUri() {
-  const explicit = process.env.GOOGLE_REDIRECT_URI?.trim();
-  if (explicit) return explicit;
   const base = getAppBaseUrl();
-  return base ? `${base}/auth/google/callback` : "";
+  if (base) return `${base}/auth/google/callback`;
+  return process.env.GOOGLE_REDIRECT_URI?.trim() || "";
 }
 
 export type ZoomConfigIssue =

@@ -88,6 +88,11 @@ export const DASHBOARD_SECTIONS = [
     label: "Unsynced language banner",
     description: "Warning shown when widget text is not synced.",
   },
+  {
+    key: "catalog",
+    label: "Catalog translations",
+    description: "Service and meeting type translation banners and help text.",
+  },
 ];
 
 const BUNDLED_LOADERS = {
@@ -138,6 +143,26 @@ function parseSectionJson(value) {
   } catch {
     return null;
   }
+}
+
+export { parseSectionJson };
+
+/** True when every populated metaobject section equals the bundled locale JSON. */
+export async function primarySectionsMatchBundled(primarySections, language) {
+  const bundled = await loadBundledDashboardMessages(language);
+  let compared = 0;
+
+  for (const section of DASHBOARD_SECTIONS) {
+    const primary = parseSectionJson(primarySections?.[section.key]);
+    if (!primary) continue;
+    compared += 1;
+    const chunk = bundled[section.key];
+    if (!chunk || JSON.stringify(primary) !== JSON.stringify(chunk)) {
+      return false;
+    }
+  }
+
+  return compared > 0;
 }
 
 export function buildDashboardMessagesFromSections(sectionValues, fallbackMessages) {

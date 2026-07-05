@@ -71,7 +71,15 @@ function init() {
   if (nodes.length === 0) return;
 
   window.__AB_BOOKING_WIDGET_INIT__ = true;
-  nodes.forEach(mountWidget);
+  nodes.forEach((root) => {
+    try {
+      mountWidget(root);
+    } catch (error) {
+      console.error("[booking-widget] mount failed", error);
+      root.innerHTML =
+        '<p class="ab-booking-widget ab-booking-widget--error" style="padding:1rem;color:#b91c1c;font:14px system-ui,sans-serif">Appointment booking could not load. Refresh the page or try again later.</p>';
+    }
+  });
 }
 
 if (document.readyState === "loading") {

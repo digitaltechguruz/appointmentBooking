@@ -1,3 +1,107 @@
+.ab-settings-layout {
+  --ab-border: #e3e3e3;
+  --ab-muted: #616161;
+  --ab-surface: #f6f6f7;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 0;
+  min-height: 520px;
+  border: 1px solid var(--ab-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.ab-settings-layout__nav {
+  background: var(--ab-surface);
+  border-right: 1px solid var(--ab-border);
+  padding: 12px 0;
+}
+
+.ab-settings-layout__nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ab-settings-layout__nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #303030;
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ab-settings-layout__nav-link:hover {
+  background: #ececee;
+  color: #111;
+}
+
+.ab-settings-layout__nav-link--active {
+  background: #fff;
+  border-left-color: #303030;
+  font-weight: 650;
+}
+
+.ab-settings-layout__nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #616161;
+  flex-shrink: 0;
+}
+
+.ab-settings-layout__nav-link--active .ab-settings-layout__nav-icon {
+  color: #303030;
+}
+
+.ab-settings-layout__content {
+  min-width: 0;
+  background: #fff;
+}
+
+.ab-settings-layout__panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.ab-settings-layout__panel-head {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--ab-border);
+}
+
+.ab-settings-layout__panel-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 650;
+  color: #111;
+  letter-spacing: -0.01em;
+}
+
+.ab-settings-layout__panel-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ab-muted);
+  max-width: 56ch;
+}
+
+.ab-settings-layout__panel-body {
+  padding: 0 24px 24px;
+}
+
+.ab-settings-layout__panel-body--integrations {
+  padding-top: 8px;
+}
+
 .ab-settings {
   --ab-border: #e3e3e3;
   --ab-muted: #616161;
@@ -413,6 +517,35 @@
 }
 
 @media (max-width: 960px) {
+  .ab-settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ab-settings-layout__nav {
+    border-right: none;
+    border-bottom: 1px solid var(--ab-border);
+    padding: 8px 0;
+  }
+
+  .ab-settings-layout__nav-list {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 0 8px;
+  }
+
+  .ab-settings-layout__nav-link {
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+
+  .ab-settings-layout__nav-link--active {
+    border-bottom-color: #303030;
+    background: #fff;
+  }
+
   .ab-settings__appearance {
     grid-template-columns: 1fr;
   }

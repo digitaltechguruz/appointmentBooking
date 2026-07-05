@@ -16,19 +16,43 @@ export function currentMonthKey() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
-export function formatMonthLabel(monthKey: string) {
+export function formatMonthLabel(monthKey: string, locale = "en") {
   const [y, m] = monthKey.split("-").map(Number);
-  return `${MONTHS[m - 1]} ${y}`;
+  return new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(y, m - 1, 1));
 }
 
-export function formatReviewDate(dateStr: string, time: string) {
+/** Monday-first weekday headers for the calendar grid. */
+export function getWeekdayHeaders(locale = "en") {
+  const monday = new Date(2024, 0, 1);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date);
+  });
+}
+
+export function formatReviewDate(dateStr: string, time: string, locale = "en") {
   const [y, m, d] = dateStr.split("-").map(Number);
-  return `${MONTHS[m - 1]} ${d}, ${y} at ${time}`;
+  const dateLabel = new Intl.DateTimeFormat(locale, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(y, m - 1, d));
+  return `${dateLabel} at ${time}`;
+}
+
+export function formatShortDateLabel(dateStr: string, locale?: string) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
 }
 
 export function buildCalendarDays(
@@ -38,6 +62,7 @@ export function buildCalendarDays(
     unavailableDates: string[];
     closedDates: string[];
   } | null,
+  today = localTodayString(),
 ): CalendarDay[] {
   const [year, month] = monthKey.split("-").map(Number);
   const first = new Date(year, month - 1, 1);
@@ -47,7 +72,6 @@ export function buildCalendarDays(
   const available = new Set(monthData?.availableDates ?? []);
   const closed = new Set(monthData?.closedDates ?? []);
   const unavailable = new Set(monthData?.unavailableDates ?? []);
-  const today = localTodayString();
   const cells: CalendarDay[] = [];
 
   for (let i = startPad - 1; i >= 0; i--) {
@@ -79,14 +103,18 @@ export function buildCalendarDays(
     cells.push({ date, day, inMonth: true, status });
   }
 
+  let nextDay = 1;
   while (cells.length % 7 !== 0) {
-    const idx = cells.length - startPad - daysInMonth + 1;
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+    const date = `${nextYear}-${String(nextMonth).padStart(2, "0")}-${String(nextDay).padStart(2, "0")}`;
     cells.push({
-      date: "",
-      day: idx,
+      date,
+      day: nextDay,
       inMonth: false,
       status: "unavailable",
     });
+    nextDay += 1;
   }
 
   return cells;
@@ -98,12 +126,38 @@ export function shiftMonth(monthKey: string, delta: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+export function compareMonthKeys(a: string, b: string) {
+  return a.localeCompare(b);
+}
+
+export function isMonthBefore(a: string, b: string) {
+  return compareMonthKeys(a, b) < 0;
+}
+
+export function isMonthAfter(a: string, b: string) {
+  return compareMonthKeys(a, b) > 0;
+}
+
+export function monthKeyFromDateString(dateStr: string) {
+  return dateStr.slice(0, 7);
+}
+
+export function clampMonthKey(
+  monthKey: string,
+  minMonth: string,
+  maxMonth: string | null,
+) {
+  if (isMonthBefore(monthKey, minMonth)) return minMonth;
+  if (maxMonth && isMonthAfter(monthKey, maxMonth)) return maxMonth;
+  return monthKey;
+}
+
 export function countSelectableDates(
   monthKey: string,
   monthData: {
     availableDates: string[];
   } | null,
-  today = localTodayString(),
+  today: string = localTodayString(),
 ) {
   if (!monthData) return 0;
   return monthData.availableDates.filter(

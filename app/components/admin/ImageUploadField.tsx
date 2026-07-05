@@ -87,67 +87,89 @@ export function ImageUploadField({
   }
 
   return (
-    <div className="ab-services__form-field">
+    <div className="ab-image-upload">
       <span className="ab-services__form-label">{label}</span>
       <input type="hidden" name={name} value={url} />
 
-      {url ? (
-        <div style={{ marginTop: 4 }}>
-          <img
-            src={url}
-            alt=""
-            className="ab-services__detail-image"
-            style={{ maxHeight: 120, marginBottom: 8 }}
-          />
-          <button
-            type="button"
-            className="ab-services__drawer-btn"
-            onClick={clearImage}
-          >
-            Remove image
-          </button>
+      <div className="ab-image-upload__panel">
+        {url ? (
+          <div className="ab-image-upload__preview">
+            <img src={url} alt="" className="ab-image-upload__preview-img" />
+            <button
+              type="button"
+              className="ab-image-upload__remove"
+              onClick={clearImage}
+              aria-label="Remove image"
+            >
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden>
+                <path
+                  d="M6 6l8 8M14 6l-8 8"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="ab-image-upload__empty">
+            <span className="ab-image-upload__empty-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="9" cy="10" r="1.5" fill="currentColor" />
+                <path d="M4 16l4.5-4.5 3 3L16 10l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="ab-image-upload__empty-text">No image selected</span>
+            <span className="ab-image-upload__empty-hint">
+              Choose from your library or upload a new image
+            </span>
+          </div>
+        )}
+
+        <div className="ab-image-upload__side">
+          <div className="ab-image-upload__actions">
+            <button
+              type="button"
+              className="ab-image-upload__btn ab-image-upload__btn--primary"
+              onClick={pickFromShopifyLibrary}
+              disabled={picking || uploading}
+            >
+              {picking ? "Opening library…" : "Select from library"}
+            </button>
+            <button
+              type="button"
+              className="ab-image-upload__btn"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? "Uploading…" : "Upload new"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={onFileChange}
+              disabled={uploading}
+              hidden
+            />
+          </div>
+
+          <div className="ab-image-upload__url">
+            <label className="ab-image-upload__url-label" htmlFor={`${name}-url`}>
+              Or paste image URL
+            </label>
+            <input
+              id={`${name}-url`}
+              type="url"
+              className="ab-services__input ab-image-upload__url-input"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://cdn.shopify.com/..."
+            />
+          </div>
         </div>
-      ) : null}
-
-      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          className="ab-services__drawer-btn"
-          onClick={pickFromShopifyLibrary}
-          disabled={picking || uploading}
-        >
-          {picking ? "Opening library…" : "Select from library"}
-        </button>
-        <button
-          type="button"
-          className="ab-services__drawer-btn"
-          disabled={uploading}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          Upload new
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={onFileChange}
-          disabled={uploading}
-          style={{ display: "none" }}
-        />
       </div>
-
-      {uploading && <p className="ab-services__hint">Uploading…</p>}
-
-      <label className="ab-services__form-field" style={{ marginTop: 8 }}>
-        <span className="ab-services__form-label">Or paste image URL</span>
-        <input
-          type="url"
-          className="ab-services__input"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://"
-        />
-      </label>
 
       <ImageLibraryModal
         open={libraryOpen}

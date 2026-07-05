@@ -3,5 +3,5 @@ import { redirect } from "react-router";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  return redirect(`/app/settings${url.search}`);
+  return redirect(`/app/settings/languages${url.search}`);
 };

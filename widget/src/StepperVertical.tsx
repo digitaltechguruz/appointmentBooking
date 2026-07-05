@@ -7,6 +7,7 @@ type Props = {
   total: number;
   theme: WidgetThemeStyles;
   stepsMeta?: BookingStepMeta[];
+  ariaLabel?: string;
 };
 
 function StepIcon({ icon, className }: { icon: string; className?: string }) {
@@ -58,7 +59,7 @@ function StepIcon({ icon, className }: { icon: string; className?: string }) {
   }
 }
 
-export function StepperVertical({ current, total, theme, stepsMeta }: Props) {
+export function StepperVertical({ current, total, theme, stepsMeta, ariaLabel }: Props) {
   const steps = Array.from({ length: total }, (_, i) => i + 1);
   const metaList = stepsMeta ?? BOOKING_STEP_META;
 
@@ -66,7 +67,7 @@ export function StepperVertical({ current, total, theme, stepsMeta }: Props) {
     <nav
       className={cn(theme.stepperSidebar, theme.stepperWrap)}
       role="navigation"
-      aria-label="Booking progress"
+      aria-label={ariaLabel ?? "Booking progress"}
     >
       <ol className="m-0 list-none p-0">
         {steps.map((stepNumber, idx) => {

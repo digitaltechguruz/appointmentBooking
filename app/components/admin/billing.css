@@ -1,0 +1,188 @@
+.ab-billing {
+  --ab-border: #e3e3e3;
+  --ab-muted: #616161;
+  --ab-success-bg: #cdfee1;
+  --ab-success-text: #0c5132;
+  --ab-surface: #fafafa;
+  --ab-accent: #005bd3;
+  max-width: 720px;
+}
+
+.ab-billing__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--ab-surface);
+  border: 1px solid var(--ab-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+
+.ab-billing__status-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ab-muted);
+  margin-bottom: 4px;
+}
+
+.ab-billing__status-plan {
+  font-size: 20px;
+  font-weight: 700;
+  color: #303030;
+  line-height: 1.2;
+}
+
+.ab-billing__status-meta {
+  font-size: 13px;
+  color: var(--ab-muted);
+  margin-top: 2px;
+}
+
+.ab-billing__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 640px) {
+  .ab-billing__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ab-billing__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--ab-border);
+  border-radius: 12px;
+  padding: 18px 18px 16px;
+  min-height: 100%;
+}
+
+.ab-billing__card--current {
+  border-color: #86b7f0;
+  box-shadow: 0 0 0 1px #86b7f0;
+}
+
+.ab-billing__card--featured {
+  border-color: #303030;
+}
+
+.ab-billing__card--featured:not(.ab-billing__card--current) {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.ab-billing__badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--ab-success-bg);
+  color: var(--ab-success-text);
+}
+
+.ab-billing__badge--recommended {
+  background: #303030;
+  color: #fff;
+}
+
+.ab-billing__card-head {
+  margin-bottom: 14px;
+  padding-right: 72px;
+}
+
+.ab-billing__card-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #303030;
+  margin: 0 0 4px;
+}
+
+.ab-billing__card-price {
+  font-size: 15px;
+  color: var(--ab-muted);
+  margin: 0;
+}
+
+.ab-billing__features {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  flex: 1;
+}
+
+.ab-billing__feature {
+  position: relative;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #303030;
+  margin-bottom: 8px;
+}
+
+.ab-billing__feature:last-child {
+  margin-bottom: 0;
+}
+
+.ab-billing__feature::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #86b7f0;
+}
+
+.ab-billing__card--featured .ab-billing__feature::before {
+  background: var(--ab-accent);
+}
+
+.ab-billing__card-action {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.ab-billing__current-label {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ab-success-text);
+}
+
+.ab-billing__notice {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--ab-surface);
+  border: 1px solid var(--ab-border);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ab-muted);
+}
+
+.ab-billing__notice p {
+  margin: 0 0 8px;
+}
+
+.ab-billing__notice p:last-child {
+  margin-bottom: 0;
+}
+
+.ab-billing__notice-meta code {
+  font-size: 12px;
+  color: #303030;
+}

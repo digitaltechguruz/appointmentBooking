@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { requirePublicMerchant } from "../lib/auth.server";
 import { listServices } from "../models/service.server";
-import { listMeetingTypesForService } from "../models/meeting-type.server";
+import { listMeetingTypesForService, listStorefrontMeetingTypesForService } from "../models/meeting-type.server";
 import {
   getAvailableSlots,
   getMonthAvailability,
@@ -45,13 +45,14 @@ async function handlePath(request: Request, fullPath: string) {
   const url = new URL(request.url);
 
   if (fullPath.startsWith("static/")) {
-    await requirePublicMerchant(request);
     return serveWidgetAsset(fullPath.replace("static/", ""));
   }
 
   if (fullPath === "widget") {
-    await requirePublicMerchant(request);
     const shop = url.searchParams.get("shop") ?? "";
+    if (!shop) {
+      return jsonError("Missing shop parameter", 400);
+    }
     const settings = url.searchParams.get("settings") ?? "{}";
     return await renderWidgetPage(shop, settings);
   }
@@ -63,31 +64,45 @@ async function handlePath(request: Request, fullPath: string) {
     case "services": {
       const locale = url.searchParams.get("locale") ?? "en";
       const services = await listServices(merchant.id, true);
-      const localizedServices = await Promise.all(
-        (services as ServiceRow[]).map(async (s) => {
-          const text = (admin
-            ? await resolveCatalogTextForStorefront(
-                admin,
-                "service",
-                s.id,
-                locale,
-                shop,
-                { name: s.name, description: s.description ?? "" },
-              )
-            : { name: s.name, description: s.description ?? "" }) as {
-            name?: string;
-            description?: string;
-          };
-          return {
-            id: s.id,
-            name: text.name || s.name,
-            description: text.description || s.description,
-            imageUrl: s.imageUrl,
-            durationMinutes: s.durationMinutes,
-            meetingTypeIds: s.meetingTypes.map((mt) => mt.meetingTypeId),
-          };
-        }),
-      );
+      const catalogContext = {
+        definitionCache: new Map<string, unknown>(),
+        primaryLocaleCode: undefined as string | undefined,
+      };
+      const localizedServices = (
+        await Promise.all(
+          (services as ServiceRow[]).map(async (s) => {
+            if (!s.durationMinutes || s.durationMinutes < 1) {
+              return null;
+            }
+            const fallback = {
+              name: s.name,
+              description: s.description ?? "",
+            };
+            const text = (admin
+              ? await resolveCatalogTextForStorefront(
+                  admin,
+                  "service",
+                  s.id,
+                  locale,
+                  shop,
+                  fallback,
+                  catalogContext,
+                )
+              : fallback) as {
+              name?: string;
+              description?: string;
+            };
+            return {
+              id: s.id,
+              name: text.name || s.name,
+              description: text.description || s.description,
+              imageUrl: s.imageUrl,
+              durationMinutes: s.durationMinutes,
+              meetingTypeIds: s.meetingTypes.map((mt) => mt.meetingTypeId),
+            };
+          }),
+        )
+      ).filter((row): row is NonNullable<typeof row> => row !== null);
       return Response.json({ services: localizedServices });
     }
     case "meeting-types": {
@@ -96,9 +111,21 @@ async function handlePath(request: Request, fullPath: string) {
         return Response.json({ error: "serviceId required" }, { status: 400 });
       }
       const locale = url.searchParams.get("locale") ?? "en";
-      const meetingTypes = await listMeetingTypesForService(merchant.id, serviceId);
+      const meetingTypes = await listStorefrontMeetingTypesForService(
+        merchant.id,
+        serviceId,
+      );
+      const catalogContext = {
+        definitionCache: new Map<string, unknown>(),
+        primaryLocaleCode: undefined as string | undefined,
+      };
       const localizedMeetingTypes = await Promise.all(
         meetingTypes.map(async (mt: MeetingType) => {
+          const fallback = {
+            name: mt.name,
+            subtitle: mt.subtitle ?? "",
+            description: mt.description ?? "",
+          };
           const text = (admin
             ? await resolveCatalogTextForStorefront(
                 admin,
@@ -106,17 +133,10 @@ async function handlePath(request: Request, fullPath: string) {
                 mt.id,
                 locale,
                 shop,
-                {
-                  name: mt.name,
-                  subtitle: mt.subtitle ?? "",
-                  description: mt.description ?? "",
-                },
+                fallback,
+                catalogContext,
               )
-            : {
-                name: mt.name,
-                subtitle: mt.subtitle ?? "",
-                description: mt.description ?? "",
-              }) as {
+            : fallback) as {
             name?: string;
             subtitle?: string;
             description?: string;
@@ -135,7 +155,14 @@ async function handlePath(request: Request, fullPath: string) {
     }
     case "config": {
       const locale = url.searchParams.get("locale") ?? "en";
-      const config = await getStorefrontConfig(merchant.id, shop, locale, admin);
+      const serviceId = url.searchParams.get("serviceId") ?? undefined;
+      const config = await getStorefrontConfig(
+        merchant.id,
+        shop,
+        locale,
+        admin,
+        serviceId,
+      );
       return Response.json(config);
     }
     case "availability": {
@@ -153,19 +180,34 @@ async function handlePath(request: Request, fullPath: string) {
         return Response.json({ date, slots, timezone });
       }
       if (month) {
-        const [availability, config, timezone] = await Promise.all([
+        const locale = url.searchParams.get("locale") ?? "en";
+        const [availability, timezone] = await Promise.all([
           getMonthAvailability(merchant.id, serviceId, month),
-          getStorefrontConfig(
-            merchant.id,
-            shop,
-            url.searchParams.get("locale") ?? "en",
-            admin,
-          ),
           getMerchantTimezone(merchant.id),
         ]);
+
+        let workingHoursSummary: string | undefined;
+        let calendarBounds: Awaited<
+          ReturnType<typeof getStorefrontConfig>
+        >["calendarBounds"];
+        try {
+          const config = await getStorefrontConfig(
+            merchant.id,
+            shop,
+            locale,
+            admin,
+            serviceId,
+          );
+          workingHoursSummary = config.workingHoursSummary;
+          calendarBounds = config.calendarBounds;
+        } catch (configError) {
+          console.warn("[proxy] availability config:", configError);
+        }
+
         return Response.json({
           ...availability,
-          workingHoursSummary: config.workingHoursSummary,
+          workingHoursSummary,
+          calendarBounds,
           timezone,
         });
       }

@@ -34,7 +34,7 @@ export function redirectToIntegrations(
   query: Record<string, string>,
 ) {
   if (shop) {
-    return embeddedAppAdminUrl(shop, "/app", query);
+    return embeddedAppAdminUrl(shop, "/app/settings/integrations", query);
   }
   return `/auth/login?${new URLSearchParams({
     ...query,

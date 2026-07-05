@@ -19,10 +19,12 @@ export function localeFromSession(session) {
   );
 }
 
+/** Header set by the embedded admin client when App Bridge locale is known. */
+export const ADMIN_LOCALE_HEADER = "X-Shopify-Admin-Locale";
+
 /**
  * Resolve embedded Admin UI language.
- * Shopify passes the current staff locale on each iframe load via ?locale= — prefer
- * that over a stale session value saved at install/login time.
+ * Priority: URL ?locale= → client header → session staff locale → Accept-Language.
  */
 export function resolveAdminLocale(request, session) {
   try {
@@ -31,6 +33,12 @@ export function resolveAdminLocale(request, session) {
   } catch {
     // ignore
   }
+
+  const fromHeader =
+    request.headers.get(ADMIN_LOCALE_HEADER) ||
+    request.headers.get("Shopify-Locale") ||
+    request.headers.get("X-Shopify-Locale");
+  if (fromHeader) return normalizeAdminLocale(fromHeader);
 
   const fromSession = localeFromSession(session);
   if (fromSession) return normalizeAdminLocale(fromSession);

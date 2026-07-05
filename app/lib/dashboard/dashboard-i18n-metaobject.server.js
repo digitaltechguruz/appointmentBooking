@@ -10,10 +10,13 @@ import {
   getDefaultDashboardSectionValuesForLanguage,
   loadBundledDashboardMessages,
   loadDashboardDefinitionLabels,
+  parseSectionJson,
+  primarySectionsMatchBundled,
 } from "./dashboard-i18n-messages.server.js";
 import {
   fetchAllShopLocales,
   fetchShopAdminHandle,
+  fetchShopPrimaryLocale,
   localeToLanguage,
   normalizeLanguage,
   translateAndAdaptMetaobjectUrl,
@@ -73,6 +76,14 @@ function shopLocaleForTranslations(locale) {
   const code = normalizeShopLocale(locale);
   if (!code) return null;
   return code.replace(/_/g, "-");
+}
+
+function localesEquivalent(a, b) {
+  const na = shopLocaleForTranslations(a)?.toLowerCase();
+  const nb = shopLocaleForTranslations(b)?.toLowerCase();
+  if (!na || !nb) return na === nb;
+  if (na === nb) return true;
+  return na.split("-")[0] === nb.split("-")[0];
 }
 
 function parseMetaobjectFieldMap(fields) {
@@ -894,12 +905,34 @@ export async function loadDashboardMessagesFromMetaobject(
   const seedLanguage = dashboardSeedLanguageFromEntry(entry, locale);
   const appLanguage = resolveDashboardSeedLanguage(locale);
   const fallbackMessages = await loadBundledDashboardMessages(appLanguage);
-
-  let sectionValues = primarySections;
+  const { locale: primaryLocaleCode } = await fetchShopPrimaryLocale(admin, shopDomain);
+  const isPrimaryShopLocale = localesEquivalent(locale, primaryLocaleCode);
 
   if (appLanguage !== seedLanguage) {
+    if (isPrimaryShopLocale) {
+      const matchesTarget = await primarySectionsMatchBundled(
+        primarySections,
+        appLanguage,
+      );
+      if (matchesTarget) {
+        return buildDashboardMessagesFromSections(
+          primarySections,
+          fallbackMessages,
+        );
+      }
+      return fallbackMessages;
+    }
+
     const localized = await fetchLocaleTranslations(admin, entry.id, locale);
-    sectionValues = {};
+    const hasTranslations = DASHBOARD_SECTIONS.some((section) =>
+      Boolean(localized[section.key]?.trim()),
+    );
+
+    if (!hasTranslations) {
+      return fallbackMessages;
+    }
+
+    const sectionValues = {};
     for (const section of DASHBOARD_SECTIONS) {
       if (localized[section.key]?.trim()) {
         sectionValues[section.key] = localized[section.key];
@@ -912,10 +945,28 @@ export async function loadDashboardMessagesFromMetaobject(
           ? JSON.stringify(bundledSection, null, 2)
           : primarySections[section.key] || "{}";
     }
+
+    return buildDashboardMessagesFromSections(sectionValues, fallbackMessages);
+  }
+
+  const matchesTarget = await primarySectionsMatchBundled(
+    primarySections,
+    appLanguage,
+  );
+  if (matchesTarget) {
+    return fallbackMessages;
+  }
+
+  const matchesEnglish = await primarySectionsMatchBundled(
+    primarySections,
+    "en",
+  );
+  if (appLanguage !== "en" && matchesEnglish) {
+    return fallbackMessages;
   }
 
   return buildDashboardMessagesFromSections(
-    sectionValues,
+    primarySections,
     fallbackMessages,
   );
 }
@@ -932,14 +983,29 @@ export async function isDashboardTextSyncedForShopLocale(
   if (!entry?.id) return false;
 
   const seedLanguage = dashboardSeedLanguageFromEntry(entry);
-  if (appLanguage === seedLanguage) {
-    return dashboardEntryIsPopulated(entry);
+  const localeCode = normalizeShopLocale(shopLocale);
+  const { locale: primaryLocaleCode } = await fetchShopPrimaryLocale(admin, shopDomain);
+  const isPrimaryShopLocale = localesEquivalent(localeCode, primaryLocaleCode);
+
+  if (appLanguage === seedLanguage || isPrimaryShopLocale) {
+    if (!dashboardEntryIsPopulated(entry)) return false;
+    if (isPrimaryShopLocale && appLanguage !== seedLanguage) {
+      const primaryMap = parseMetaobjectFieldMap(entry.fields);
+      const primarySections = Object.fromEntries(
+        DASHBOARD_SECTIONS.map((section) => [
+          section.key,
+          primaryMap[section.key] || "",
+        ]),
+      );
+      return primarySectionsMatchBundled(primarySections, appLanguage);
+    }
+    return true;
   }
 
   const localized = await fetchLocaleTranslations(
     admin,
     entry.id,
-    normalizeShopLocale(shopLocale),
+    localeCode,
   );
   return DASHBOARD_SECTIONS.some((section) =>
     Boolean(localized[section.key]?.trim()),
@@ -972,11 +1038,24 @@ export async function syncDashboardTextForShopLocale(
   const seedLanguage = dashboardSeedLanguageFromEntry(entry, uiLocale);
   const values = await getDefaultDashboardSectionValuesForLanguage(appLanguage);
   const localeCode = normalizeShopLocale(shopLocale);
+  const { locale: primaryLocaleCode } = await fetchShopPrimaryLocale(admin, shopDomain);
+  const isPrimaryShopLocale = localesEquivalent(localeCode, primaryLocaleCode);
+  const labels = await loadDashboardDefinitionLabels(uiLocale);
+  const languageNames = labels.languageNames || {};
 
-  if (appLanguage === seedLanguage) {
-    await upsertPrimaryDashboardText(admin, metaobjectType, appLanguage, values);
+  if (appLanguage === seedLanguage || isPrimaryShopLocale) {
+    await upsertPrimaryDashboardText(
+      admin,
+      metaobjectType,
+      appLanguage,
+      values,
+      languageNames,
+    );
   } else {
-    values[LANGUAGE_FIELD_KEY] = formatDashboardLanguageFieldValue(appLanguage);
+    values[LANGUAGE_FIELD_KEY] = formatDashboardLanguageFieldValue(
+      appLanguage,
+      languageNames,
+    );
     await registerLocaleTranslations(admin, entry.id, localeCode, values);
   }
 
@@ -1007,6 +1086,117 @@ export async function resetDashboardTextDefaults(admin, shopDomain, uiLocale = "
     locale: seedLanguage,
     language: seedLanguage,
   };
+}
+
+/** Merge new bundled keys into the primary dashboard metaobject without overwriting merchant edits. */
+async function mergePrimaryDashboardWithBundled(admin, shopDomain, uiLocale) {
+  const appLanguage = resolveDashboardSeedLanguage(uiLocale);
+  const { entry } = await findDashboardTextEntryReadOnly(admin);
+  if (!entry?.id || !dashboardEntryIsPopulated(entry)) return { updated: false };
+
+  const seedLanguage = dashboardSeedLanguageFromEntry(entry, uiLocale);
+  if (appLanguage !== seedLanguage) return { updated: false };
+
+  const bundled = await getDefaultDashboardSectionValuesForLanguage(appLanguage);
+  const primaryMap = parseMetaobjectFieldMap(entry.fields);
+  const mergedValues = { ...bundled };
+  let changed = false;
+
+  for (const section of DASHBOARD_SECTIONS) {
+    const bundledParsed = parseSectionJson(bundled[section.key]);
+    const storedParsed = parseSectionJson(primaryMap[section.key] || "");
+    if (!bundledParsed) continue;
+
+    const merged = { ...bundledParsed, ...(storedParsed || {}) };
+    const mergedStr = JSON.stringify(merged, null, 2);
+    const storedStr = (primaryMap[section.key] || "").trim();
+    mergedValues[section.key] = mergedStr;
+    if (mergedStr !== storedStr) changed = true;
+  }
+
+  if (!changed) return { updated: false };
+
+  const definition = await ensureDashboardDefinition(admin, { uiLocale });
+  const metaobjectType = definition.type || MERCHANT_DASHBOARD_TEXT_TYPE;
+  const labels = await loadDashboardDefinitionLabels(uiLocale);
+  await upsertPrimaryDashboardText(
+    admin,
+    metaobjectType,
+    appLanguage,
+    mergedValues,
+    labels.languageNames || {},
+  );
+  if (shopDomain) invalidateDashboardTextShopCache(shopDomain);
+
+  return { updated: true };
+}
+
+/** Register bundled dashboard copy for the current Admin UI language when missing. */
+export async function ensureDashboardMessagesForAdminLocale(
+  admin,
+  shopDomain,
+  uiLocale,
+) {
+  if (!admin?.graphql) return { ok: false };
+
+  const appLanguage = resolveDashboardSeedLanguage(uiLocale);
+  const { entry } = await findDashboardTextEntryReadOnly(admin);
+  if (!entry?.id) {
+    const provision = await provisionDashboardTextMetaobject(admin, {
+      shopDomain,
+      skipIfReady: false,
+      uiLocale,
+    });
+    return { ok: provision.ok };
+  }
+
+  const seedLanguage = dashboardSeedLanguageFromEntry(entry, uiLocale);
+
+  if (appLanguage === seedLanguage) {
+    if (!dashboardEntryIsPopulated(entry)) {
+      await provisionDashboardTextMetaobject(admin, {
+        shopDomain,
+        skipIfReady: false,
+        uiLocale,
+      });
+      return { ok: true };
+    }
+
+    const primaryMap = parseMetaobjectFieldMap(entry.fields);
+    const primarySections = Object.fromEntries(
+      DASHBOARD_SECTIONS.map((section) => [
+        section.key,
+        primaryMap[section.key] || "",
+      ]),
+    );
+    const matchesTarget = await primarySectionsMatchBundled(
+      primarySections,
+      appLanguage,
+    );
+    const matchesEnglish =
+      appLanguage !== "en" &&
+      (await primarySectionsMatchBundled(primarySections, "en"));
+
+    if (!matchesTarget && matchesEnglish) {
+      await resetDashboardTextDefaults(admin, shopDomain, uiLocale);
+      if (shopDomain) invalidateDashboardTextShopCache(shopDomain);
+    } else {
+      await mergePrimaryDashboardWithBundled(admin, shopDomain, uiLocale);
+    }
+
+    return { ok: true };
+  }
+
+  const synced = await isDashboardTextSyncedForShopLocale(
+    admin,
+    uiLocale,
+    shopDomain,
+  );
+  if (synced) return { ok: true };
+
+  await syncDashboardTextForShopLocale(admin, uiLocale, shopDomain, uiLocale);
+  if (shopDomain) invalidateDashboardTextShopCache(shopDomain);
+  return { ok: true };
 }
 
 export async function fetchUnsyncedDashboardTextLocales(admin, shopDomain) {

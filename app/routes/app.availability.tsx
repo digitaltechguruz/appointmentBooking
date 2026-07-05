@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher, useRevalidator } from "react-router";
+import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
@@ -29,7 +29,8 @@ import {
   saveAvailabilityDisplayPrefs,
   type AvailabilityDisplayPrefs,
 } from "../lib/admin/availability-display-prefs";
-import { DAYS_OF_WEEK } from "../lib/constants";
+import { DAYS_OF_WEEK, HOLIDAYS_PREMIUM_MESSAGE } from "../lib/constants";
+import { hasPremiumAccess } from "../models/subscription.server";
 import { parseTimeToMinutes, minCloseTimeAfter } from "../lib/booking/time";
 import {
   CopyHoursButton,
@@ -40,6 +41,7 @@ import {
   type HoursTimeFormat,
 } from "../components/admin/time-pickers";
 import { showAppToast, useFetcherIdleResult } from "../lib/admin/toast";
+import { useAdminI18n } from "../lib/admin-i18n";
 import "../components/admin/availability.css";
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
@@ -146,14 +148,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { merchant } = await requireAdminMerchant(request);
   const timezone = merchant.timezone ?? "UTC";
 
-  const [rules, closedDates] = await Promise.all([
+  const [rules, closedDates, hasPremium] = await Promise.all([
     getAvailabilityRules(merchant.id),
     listClosedDates(merchant.id),
+    hasPremiumAccess(merchant.id),
   ]);
   return {
     shop: merchant.shop,
     rules,
-    closedDates,
+    closedDates: hasPremium ? closedDates : [],
+    hasPremium,
     timezone,
     timezoneLabel: formatTimezoneLabel(timezone),
     displayPrefs: {
@@ -171,6 +175,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = formData.get("intent") as string;
 
   if (intent === "add-closed-range" || intent === "update-closed-range") {
+    if (!(await hasPremiumAccess(merchant.id))) {
+      return { error: HOLIDAYS_PREMIUM_MESSAGE };
+    }
+
     const closedAllDay = formData.get("closedAllDay") !== "false";
     const startDate = formData.get("startDate");
     const endDate = formData.get("endDate") || startDate;
@@ -218,6 +226,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "remove-closed-range") {
+    if (!(await hasPremiumAccess(merchant.id))) {
+      return { error: HOLIDAYS_PREMIUM_MESSAGE };
+    }
     const result = await runAvailabilityAction(async () => {
       await removeClosedDate(merchant.id, formData.get("id") as string);
       return { ok: true as const };
@@ -226,6 +237,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "remove-closed-ranges") {
+    if (!(await hasPremiumAccess(merchant.id))) {
+      return { error: HOLIDAYS_PREMIUM_MESSAGE };
+    }
     const ids = formData.getAll("ids") as string[];
     const result = await runAvailabilityAction(async () => {
       if (ids.length > 0) {
@@ -903,10 +917,13 @@ export default function AvailabilityPage() {
     shop,
     rules,
     closedDates,
+    hasPremium,
     timezoneLabel,
     displayPrefs: loaderDisplayPrefs,
   } = useLoaderData<typeof loader>();
+  const { t } = useAdminI18n();
   const fetcher = useFetcher<typeof action>();
+  const billingFetcher = useFetcher();
   const shopify = useAppBridge();
   const [displayPrefs, setDisplayPrefs] = useState(loaderDisplayPrefs);
   const [editingClosedId, setEditingClosedId] = useState<string | null>(null);
@@ -956,7 +973,7 @@ export default function AvailabilityPage() {
   };
 
   return (
-    <s-page heading="Availability">
+    <s-page heading={t("availability.pageTitle")}>
       <div className="ab-availability">
         <WorkingHoursSection
           rules={rules}
@@ -969,7 +986,10 @@ export default function AvailabilityPage() {
 
         <s-section heading="Holidays & special hours">
           <div className="ab-card">
-            <h3 className="ab-card__title">About holidays & special hours</h3>
+            <div className="ab-card__title-row">
+              <h3 className="ab-card__title">About holidays & special hours</h3>
+              {!hasPremium ? <span className="ab-pro-badge">Pro</span> : null}
+            </div>
             <ul className="ab-about-list">
               <li>These override your regular weekly schedule for specific dates.</li>
               <li>Set <strong>Closed all day</strong> for holidays when bookings are unavailable.</li>
@@ -980,6 +1000,21 @@ export default function AvailabilityPage() {
             </ul>
           </div>
 
+          {!hasPremium ? (
+            <div className="ab-card ab-pro-lock">
+              <p className="ab-pro-lock__text">{HOLIDAYS_PREMIUM_MESSAGE}</p>
+              <billingFetcher.Form method="post" action="/app/billing">
+                <s-button
+                  type="submit"
+                  variant="primary"
+                  loading={billingFetcher.state !== "idle"}
+                >
+                  Upgrade now
+                </s-button>
+              </billingFetcher.Form>
+            </div>
+          ) : (
+            <>
           <HolidayForm
             fetcher={fetcher}
             editing={editingClosed ?? null}
@@ -1086,6 +1121,8 @@ export default function AvailabilityPage() {
                 </tbody>
               </table>
             </div>
+          )}
+            </>
           )}
         </s-section>
       </div>

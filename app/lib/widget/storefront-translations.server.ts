@@ -36,6 +36,7 @@ export function metaobjectValuesToWidgetLabels(
   set("widget.step2Subtitle", values.step2_subtitle);
   set("widget.step3Intro", values.step3_intro);
   set("widget.selectDateTime", values.step3_title);
+  set("widget.step3Subtitle", values.step3_subtitle);
   set("widget.customerInfo", values.step4_title);
   set("widget.step4Subtitle", values.step4_subtitle);
   set("widget.review", values.step5_title);
@@ -63,12 +64,36 @@ export function metaobjectValuesToWidgetLabels(
   set("widget.confirming", values.confirming_button);
 
   set("widget.availableTimes", values.available_times);
+  set("widget.timezoneLabel", values.timezone_label);
   set("widget.timezoneHint", values.timezone_hint);
   set("widget.selectDateFirst", values.select_date_first);
   set("widget.noSlots", values.no_slots);
   set("widget.minutes", values.minutes_label);
   set("widget.loading", values.loading_label);
   set("widget.loadingAvailability", values.loading_availability);
+
+  set("widget.calendarPastLimit", values.calendar_past_limit);
+  set("widget.calendarFutureLimit", values.calendar_future_limit);
+  set("widget.calendarFutureLimitGeneric", values.calendar_future_limit_generic);
+  set("widget.calendarNoDates", values.calendar_no_dates);
+  set("widget.calendarLoadError", values.calendar_load_error);
+  set("widget.noMeetingTypes", values.no_meeting_types);
+  set("widget.bookAnother", values.book_another);
+  set("widget.previousMonth", values.previous_month);
+  set("widget.nextMonth", values.next_month);
+  set("widget.stepperAriaLabel", values.stepper_aria_label);
+  set("widget.countryCodeAria", values.country_code_aria);
+  set("widget.popularCountries", values.popular_countries);
+  set("widget.allCountries", values.all_countries);
+  set("widget.errorLoadWidget", values.error_load_widget);
+  set("widget.errorBookingFailed", values.error_booking_failed);
+  set("widget.errorEmptyResponse", values.error_empty_response);
+  set("widget.errorUnexpectedPage", values.error_unexpected_page);
+  set("widget.errorReadResponse", values.error_read_response);
+  set("widget.errorIncompleteResponse", values.error_incomplete_response);
+  set("widget.errorRequestFailed", values.error_request_failed);
+  set("widget.stepProgress", values.step_progress);
+  set("widget.previewBanner", values.preview_banner);
 
   set("widget.reviewAppointment", values.review_appointment_label);
   set("widget.reviewDateTime", values.review_datetime_label);

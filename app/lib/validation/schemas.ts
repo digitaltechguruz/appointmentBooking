@@ -24,10 +24,59 @@ export const serviceCreateSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   imageUrl: z.union([z.string().url(), z.literal("")]).optional(),
-  durationMinutes: z.coerce.number().int().min(5).max(480),
   active: z.boolean().default(true),
   meetingTypeIds: z.array(z.string()).optional(),
 });
+
+const booleanFormField = z
+  .union([z.boolean(), z.literal("true"), z.literal("false"), z.literal("on")])
+  .transform((value) => value === true || value === "true" || value === "on");
+
+function optionalFormNumber(
+  schema: z.ZodType<number>,
+) {
+  return z.preprocess(
+    (value) => (value === "" || value === undefined || value === null ? undefined : value),
+    schema.optional(),
+  );
+}
+
+export const serviceBookingRulesSchema = z
+  .object({
+    useCustomBookingRules: booleanFormField.default(false),
+    slotIntervalValue: optionalFormNumber(z.coerce.number().int().min(1).max(480)),
+    slotIntervalUnit: z.enum(["minutes", "hours"]).optional(),
+    defaultDurationValue: optionalFormNumber(z.coerce.number().int().min(1).max(480)),
+    defaultDurationUnit: z.enum(["minutes", "hours"]).optional(),
+    minNoticeValue: optionalFormNumber(z.coerce.number().int().min(0).max(365)),
+    minNoticeUnit: z.enum(["minutes", "hours", "days", "weeks"]).optional(),
+    maxAdvanceValue: optionalFormNumber(z.coerce.number().int().min(1).max(365)),
+    maxAdvanceUnit: z.enum(["days", "weeks", "months"]).optional(),
+    bufferBeforeValue: optionalFormNumber(z.coerce.number().int().min(0).max(480)),
+    bufferBeforeUnit: z.enum(["minutes", "hours"]).optional(),
+    bufferAfterValue: optionalFormNumber(z.coerce.number().int().min(0).max(480)),
+    bufferAfterUnit: z.enum(["minutes", "hours"]).optional(),
+    maxBookingsPerDay: optionalFormNumber(z.coerce.number().int().min(0).max(999)),
+    maxBookingsPerSlot: optionalFormNumber(z.coerce.number().int().min(1).max(99)),
+    lookBusyEnabled: booleanFormField.optional(),
+    lookBusyPercent: optionalFormNumber(z.coerce.number().int().min(0).max(100)),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.useCustomBookingRules &&
+      (data.defaultDurationValue == null || data.defaultDurationValue < 1)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Meeting duration is required when booking rules are enabled",
+        path: ["defaultDurationValue"],
+      });
+    }
+  });
+
+export const serviceCreateWithRulesSchema = serviceCreateSchema.merge(
+  serviceBookingRulesSchema,
+);
 
 export const serviceUpdateSchema = serviceCreateSchema.partial();
 
@@ -75,6 +124,27 @@ export const availabilityUpdateSchema = z.object({
 export const availabilityDisplayPrefsSchema = z.object({
   hoursTimeFormat: z.enum(["HOUR_12", "HOUR_24"]),
   weekStartsOn: z.enum(["MONDAY", "SUNDAY"]),
+});
+
+export const bookingRulesSchema = z.object({
+  slotIntervalValue: z.coerce.number().int().min(1).max(480),
+  slotIntervalUnit: z.enum(["minutes", "hours"]),
+  defaultDurationValue: z.coerce.number().int().min(1).max(480),
+  defaultDurationUnit: z.enum(["minutes", "hours"]),
+  minNoticeValue: z.coerce.number().int().min(0).max(365),
+  minNoticeUnit: z.enum(["minutes", "hours", "days", "weeks"]),
+  maxAdvanceValue: z.coerce.number().int().min(0).max(365),
+  maxAdvanceUnit: z.enum(["days", "weeks", "months"]),
+  bufferBeforeValue: z.coerce.number().int().min(0).max(480),
+  bufferBeforeUnit: z.enum(["minutes", "hours"]),
+  bufferAfterValue: z.coerce.number().int().min(0).max(480),
+  bufferAfterUnit: z.enum(["minutes", "hours"]),
+  maxBookingsPerDay: z.coerce.number().int().min(0).max(999),
+  maxBookingsPerSlot: z.coerce.number().int().min(1).max(99),
+  lookBusyEnabled: z
+    .union([z.boolean(), z.literal("true"), z.literal("false"), z.literal("on")])
+    .transform((value) => value === true || value === "true" || value === "on"),
+  lookBusyPercent: z.coerce.number().int().min(0).max(100),
 });
 
 export const closedDateRangeSchema = z

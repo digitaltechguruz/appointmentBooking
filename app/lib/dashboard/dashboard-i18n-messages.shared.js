@@ -14,6 +14,7 @@ export const DASHBOARD_SECTION_KEYS = [
   "billing",
   "languages",
   "banner",
+  "catalog",
 ];
 
 /** Field guide for the Settings page — labels come from locale JSON via `t()`. */

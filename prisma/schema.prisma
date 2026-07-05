@@ -66,10 +66,8 @@ enum DayOfWeek {
 
 enum SubscriptionPlan {
   FREE
+  PRO
   SHOPIFY_TEST
-  TEST
-  LEGACY_ACCESS
-  ANNUAL_PREMIUM
 }
 
 enum SubscriptionStatus {
@@ -121,6 +119,18 @@ model Merchant {
   weekStartsOn    DayOfWeek       @default(SUNDAY)
   widgetTheme     WidgetTheme     @default(CLASSIC)
   widgetContent   Json?
+  // Booking rules (stored as normalized minutes/days)
+  slotIntervalMinutes      Int     @default(30)
+  defaultDurationMinutes   Int     @default(30)
+  minNoticeMinutes         Int     @default(0)
+  maxAdvanceDays           Int     @default(30)
+  bufferBeforeMinutes      Int     @default(0)
+  bufferAfterMinutes       Int     @default(0)
+  maxBookingsPerDay        Int     @default(0)
+  maxBookingsPerSlot       Int     @default(1)
+  lookBusyEnabled          Boolean @default(false)
+  lookBusyPercent          Int     @default(0)
+  setupGuideState          Json?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -146,6 +156,17 @@ model Service {
   imageUrl        String?
   durationMinutes Int
   active          Boolean  @default(true)
+  // Optional per-service booking rules (when useCustomBookingRules is true)
+  useCustomBookingRules Boolean @default(false)
+  slotIntervalMinutes   Int?
+  minNoticeMinutes      Int?
+  maxAdvanceDays        Int?
+  bufferBeforeMinutes   Int?
+  bufferAfterMinutes    Int?
+  maxBookingsPerDay     Int?
+  maxBookingsPerSlot    Int?
+  lookBusyEnabled       Boolean?
+  lookBusyPercent       Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -266,7 +287,7 @@ model Booking {
   meetingType MeetingType @relation(fields: [meetingTypeId], references: [id], onDelete: Restrict)
   customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
-  @@unique([merchantId, bookingDate, startTime])
+  @@index([merchantId, bookingDate, startTime])
   @@index([merchantId])
   @@index([merchantId, status])
   @@index([merchantId, serviceId])

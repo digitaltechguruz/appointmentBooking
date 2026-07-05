@@ -20,16 +20,19 @@ import {
 import { PhoneCountrySelect } from "./PhoneCountrySelect";
 import {
   buildCalendarDays,
+  clampMonthKey,
   countSelectableDates,
   currentMonthKey,
-  formatMonthLabel,
-  shiftMonth,
+  formatShortDateLabel,
+  isMonthAfter,
+  isMonthBefore,
 } from "./calendar";
+import { DateTimeStep } from "./DateTimeStep";
 import {
   formatMerchantDateTimeForZone,
   formatMerchantTimeForZone,
-  formatTimezoneShort,
   getUserTimezone,
+  todayInTimezone,
 } from "./timezone";
 import { cn } from "./cn";
 import { BOOKING_WIDGET_ROOT_ID } from "./constants";
@@ -47,7 +50,30 @@ type MonthAvailability = {
   unavailableDates: string[];
   closedDates: string[];
   workingHoursSummary?: string;
+  calendarBounds?: CalendarBounds;
 };
+
+type CalendarBounds = {
+  minMonth: string;
+  maxMonth: string | null;
+  maxAdvanceLabel: string | null;
+};
+
+function applyCalendarBounds(
+  bounds: CalendarBounds | undefined,
+  setCalendarBounds: React.Dispatch<React.SetStateAction<CalendarBounds>>,
+  setCurrentMonth: React.Dispatch<React.SetStateAction<string>>,
+) {
+  if (!bounds) return;
+  setCalendarBounds({
+    minMonth: bounds.minMonth,
+    maxMonth: bounds.maxMonth,
+    maxAdvanceLabel: bounds.maxAdvanceLabel,
+  });
+  setCurrentMonth((month) =>
+    clampMonthKey(month, bounds.minMonth, bounds.maxMonth),
+  );
+}
 
 type Props = {
   shop: string;
@@ -57,10 +83,6 @@ type Props = {
 
 function t(labels: Translations, key: string, fallback?: string) {
   return labels[key] ?? DEFAULT_LABELS[key] ?? fallback ?? key;
-}
-
-function interpolateLabel(template: string, vars: Record<string, string>) {
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => vars[key] ?? "");
 }
 
 function resolveImage(
@@ -96,6 +118,32 @@ function formatPhone(countryIso: string, phone: string) {
   return `${getPhoneCountryDial(countryIso)} ${trimmed}`;
 }
 
+function fetchWithTimeout(url: string, ms: number) {
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+    return fetch(url, { signal: AbortSignal.timeout(ms) });
+  }
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), ms);
+  return fetch(url, { signal: controller.signal }).finally(() => {
+    window.clearTimeout(timer);
+  });
+}
+
+async function readWidgetJsonResponse(res: Response) {
+  const text = await res.text();
+  if (!text.trim()) {
+    throw new Error("empty");
+  }
+  if (text.trimStart().startsWith("<")) {
+    throw new Error("html");
+  }
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error("json");
+  }
+}
+
 function widgetSettingsToLabels(settings: Partial<WidgetSettings>): Translations {
   const labels: Translations = {};
   const set = (key: string, value: string | undefined) => {
@@ -111,6 +159,7 @@ function widgetSettingsToLabels(settings: Partial<WidgetSettings>): Translations
   set("widget.step2Subtitle", settings.step2Subtitle);
   set("widget.step3Intro", settings.step3Intro);
   set("widget.selectDateTime", settings.step3Title);
+  set("widget.step3Subtitle", settings.step3Subtitle);
   set("widget.customerInfo", settings.step4Title);
   set("widget.step4Subtitle", settings.step4Subtitle);
   set("widget.review", settings.step5Title);
@@ -131,10 +180,17 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
   }));
   const [services, setServices] = useState<Service[]>([]);
   const [meetingTypes, setMeetingTypes] = useState<MeetingType[]>([]);
+  const [meetingTypesLoading, setMeetingTypesLoading] = useState(false);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [monthData, setMonthData] = useState<MonthAvailability | null>(null);
   const [monthLoading, setMonthLoading] = useState(false);
   const [monthError, setMonthError] = useState("");
+  const [monthNotice, setMonthNotice] = useState("");
+  const [calendarBounds, setCalendarBounds] = useState<CalendarBounds>({
+    minMonth: currentMonthKey(),
+    maxMonth: null,
+    maxAdvanceLabel: null,
+  });
   const [labels, setLabels] = useState<Translations>(DEFAULT_LABELS);
   const [workingHoursSummary, setWorkingHoursSummary] = useState("");
   const [merchantTimezone, setMerchantTimezone] = useState("UTC");
@@ -162,14 +218,46 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
     "--ab-accent": accent,
   } as React.CSSProperties;
 
+  const storefrontLocale = runtimeSettings.locale || "en";
+  const merchantToday = useMemo(
+    () => todayInTimezone(merchantTimezone),
+    [merchantTimezone],
+  );
+
   const fetchApi = useCallback(
     async (path: string) => {
-      const sep = path.includes("?") ? "&" : "?";
-      const res = await fetch(`${apiBase}${path}${sep}shop=${encodeURIComponent(shop)}`);
-      if (!res.ok) throw new Error("Request failed");
-      return res.json();
+      let requestPath = path;
+      if (!requestPath.includes("locale=")) {
+        const sep = requestPath.includes("?") ? "&" : "?";
+        requestPath = `${requestPath}${sep}locale=${encodeURIComponent(storefrontLocale)}`;
+      }
+      const shopSep = requestPath.includes("?") ? "&" : "?";
+      let res: Response;
+      try {
+        res = await fetchWithTimeout(
+          `${apiBase}${requestPath}${shopSep}shop=${encodeURIComponent(shop)}`,
+          20000,
+        );
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          (error.name === "TimeoutError" || error.name === "AbortError")
+        ) {
+          throw new Error(DEFAULT_LABELS["widget.errorLoadWidget"]);
+        }
+        throw error;
+      }
+      const data = await readWidgetJsonResponse(res);
+      if (!res.ok) {
+        const message =
+          typeof data.error === "string"
+            ? data.error
+            : DEFAULT_LABELS["widget.errorRequestFailed"];
+        throw new Error(message);
+      }
+      return data;
     },
-    [apiBase, shop],
+    [apiBase, shop, storefrontLocale],
   );
 
   useEffect(() => {
@@ -178,59 +266,224 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
       setState((s) => ({ ...s, serviceId: "preview-3", step: 1 }));
       return;
     }
-    fetchApi("/services")
-      .then((data) => setServices(data.services ?? []))
-      .catch(() => setError("Failed to load services"));
-    fetchApi(`/translations?locale=${encodeURIComponent(runtimeSettings.locale)}`)
-      .then((data) =>
-        setLabels({ ...DEFAULT_LABELS, ...(data.translations ?? {}) }),
-      )
-      .catch(() => {});
-    fetchApi(`/config?locale=${encodeURIComponent(runtimeSettings.locale)}`)
-      .then((data) => {
-        setWorkingHoursSummary(data.workingHoursSummary ?? "");
-        setMerchantTimezone(data.timezone ?? "UTC");
-        if (data.widgetSettings) {
-          setRuntimeSettings((prev) => {
-            const nextSettings = {
-              ...prev,
-              ...data.widgetSettings,
-              locale: data.widgetSettings.locale || prev.locale || "en",
-              visible: data.widgetSettings.visible !== false,
-            };
-            setLabels((labelsPrev) => ({
-              ...labelsPrev,
-              ...widgetSettingsToLabels(nextSettings),
-            }));
-            return nextSettings;
-          });
-          if (!initialSettings.theme && data.widgetSettings.theme) {
-            setResolvedTheme(data.widgetSettings.theme);
-          }
-        }
-        if (!initialSettings.theme) {
-          if (data.widgetTheme === "MODERN") setResolvedTheme("modern");
-          else if (data.widgetTheme === "CLASSIC") setResolvedTheme("classic");
-        }
+
+    let cancelled = false;
+
+    async function loadWidgetConfig() {
+      const results = await Promise.allSettled([
+        fetchApi("/services"),
+        fetchApi("/translations"),
+        fetchApi("/config"),
+      ]);
+
+      if (cancelled) return;
+
+      const [servicesResult, translationsResult, configResult] = results;
+      const servicesData =
+        servicesResult.status === "fulfilled" ? servicesResult.value : null;
+      const translationsData =
+        translationsResult.status === "fulfilled" ? translationsResult.value : null;
+      const configData =
+        configResult.status === "fulfilled" ? configResult.value : null;
+
+      if (!servicesData) {
+        setError(t(labels, "widget.errorLoadWidget"));
         setConfigReady(true);
+        return;
+      }
+
+      setError("");
+      setServices((servicesData.services as Service[]) ?? []);
+
+      const translatedLabels = {
+        ...DEFAULT_LABELS,
+        ...((translationsData?.translations as Translations) ?? {}),
+      };
+      setLabels(translatedLabels);
+
+      setWorkingHoursSummary(
+        typeof configData?.workingHoursSummary === "string"
+          ? configData.workingHoursSummary
+          : "",
+      );
+      if (typeof configData?.timezone === "string") {
+        setMerchantTimezone(configData.timezone);
+      }
+
+      if (configData?.calendarBounds) {
+        const bounds = configData.calendarBounds as CalendarBounds;
+        setCalendarBounds({
+          minMonth: bounds.minMonth ?? currentMonthKey(),
+          maxMonth: bounds.maxMonth ?? null,
+          maxAdvanceLabel: bounds.maxAdvanceLabel ?? null,
+        });
+        setCurrentMonth((month) =>
+          clampMonthKey(
+            month,
+            bounds.minMonth ?? currentMonthKey(),
+            bounds.maxMonth ?? null,
+          ),
+        );
+      }
+
+      if (configData?.widgetSettings) {
+        const widgetSettings = configData.widgetSettings as Partial<WidgetSettings>;
+        setRuntimeSettings((prev) => {
+          const nextSettings = {
+            ...prev,
+            ...widgetSettings,
+            locale:
+              widgetSettings.locale || prev.locale || storefrontLocale,
+            visible: widgetSettings.visible !== false,
+          };
+          setLabels((labelsPrev) => ({
+            ...labelsPrev,
+            ...widgetSettingsToLabels(nextSettings),
+          }));
+          return nextSettings;
+        });
+        if (!initialSettings.theme && widgetSettings.theme) {
+          setResolvedTheme(widgetSettings.theme);
+        }
+      }
+
+      if (!initialSettings.theme) {
+        if (configData?.widgetTheme === "MODERN") setResolvedTheme("modern");
+        else if (configData?.widgetTheme === "CLASSIC") setResolvedTheme("classic");
+      }
+
+      setConfigReady(true);
+    }
+
+    loadWidgetConfig().catch(() => {
+      if (!cancelled) {
+        setError(t(labels, "widget.errorLoadWidget"));
+        setConfigReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchApi, isPreview, initialSettings.theme, storefrontLocale]);
+
+  useEffect(() => {
+    if (!state.serviceId || isPreview) {
+      setMeetingTypes([]);
+      setMeetingTypesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setMeetingTypes([]);
+    setMeetingTypesLoading(true);
+    setState((s) => ({
+      ...s,
+      meetingTypeId: "",
+      date: "",
+      startTime: "",
+    }));
+
+    fetchApi(`/meeting-types?serviceId=${state.serviceId}`)
+      .then((data) => {
+        if (cancelled) return;
+        const types: MeetingType[] = data.meetingTypes ?? [];
+        setMeetingTypes(types);
+        if (types.length === 1) {
+          setState((s) => ({ ...s, meetingTypeId: types[0].id }));
+        }
       })
-      .catch(() => setConfigReady(true));
-  }, [fetchApi, runtimeSettings.locale, isPreview, initialSettings.theme]);
+      .catch(() => {
+        if (!cancelled) setMeetingTypes([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMeetingTypesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.serviceId, fetchApi, isPreview, storefrontLocale]);
 
   useEffect(() => {
     if (!state.serviceId || isPreview) return;
-    fetchApi(`/meeting-types?serviceId=${state.serviceId}`)
-      .then((data) => setMeetingTypes(data.meetingTypes ?? []))
-      .catch(() => setMeetingTypes([]));
+
+    let cancelled = false;
+    fetchApi(`/config?serviceId=${state.serviceId}`)
+      .then((configData) => {
+        if (cancelled) return;
+        applyCalendarBounds(configData.calendarBounds, setCalendarBounds, setCurrentMonth);
+        if (configData.workingHoursSummary) {
+          setWorkingHoursSummary(configData.workingHoursSummary);
+        }
+      })
+      .catch(() => {
+        /* keep merchant defaults */
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [state.serviceId, fetchApi, isPreview]);
 
   useEffect(() => {
     if (state.step !== 3) return;
-    setCurrentMonth((month) => {
-      const todayMonth = currentMonthKey();
-      return month < todayMonth ? todayMonth : month;
-    });
-  }, [state.step]);
+    setCurrentMonth((month) =>
+      clampMonthKey(month, calendarBounds.minMonth, calendarBounds.maxMonth),
+    );
+    setMonthNotice("");
+    setMonthError("");
+  }, [state.step, calendarBounds.minMonth, calendarBounds.maxMonth]);
+
+  function calendarFutureLimitMessage(bounds: CalendarBounds = calendarBounds) {
+    const template = t(labels, "widget.calendarFutureLimit");
+    if (bounds.maxAdvanceLabel) {
+      return template.replace("{range}", bounds.maxAdvanceLabel);
+    }
+    return t(labels, "widget.calendarFutureLimitGeneric");
+  }
+
+  function resolveMonthNotice(
+    monthKey: string,
+    data: MonthAvailability | null,
+    bounds: CalendarBounds = calendarBounds,
+    today: string = merchantToday,
+  ) {
+    if (isMonthBefore(monthKey, bounds.minMonth)) {
+      return t(labels, "widget.calendarPastLimit");
+    }
+    if (bounds.maxMonth && isMonthAfter(monthKey, bounds.maxMonth)) {
+      return calendarFutureLimitMessage(bounds);
+    }
+    if (data && countSelectableDates(monthKey, data, today) === 0) {
+      return t(labels, "widget.calendarNoDates");
+    }
+    return "";
+  }
+
+  function handleMonthChange(nextMonth: string) {
+    const clamped = clampMonthKey(
+      nextMonth,
+      calendarBounds.minMonth,
+      calendarBounds.maxMonth,
+    );
+
+    if (isMonthBefore(nextMonth, calendarBounds.minMonth)) {
+      setMonthNotice(t(labels, "widget.calendarPastLimit"));
+      setCurrentMonth(calendarBounds.minMonth);
+      return;
+    }
+
+    if (calendarBounds.maxMonth && isMonthAfter(nextMonth, calendarBounds.maxMonth)) {
+      setMonthNotice(calendarFutureLimitMessage());
+      setCurrentMonth(calendarBounds.maxMonth);
+      return;
+    }
+
+    setMonthError("");
+    setMonthNotice("");
+    setCurrentMonth(clamped);
+  }
 
   useEffect(() => {
     if (!state.serviceId || state.step < 3) return;
@@ -244,26 +497,36 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
         if (cancelled) return;
         if (!data || !Array.isArray(data.availableDates)) {
           setMonthData(null);
-          setMonthError("Could not load availability");
+          setMonthError(t(labels, "widget.calendarLoadError"));
           return;
         }
-        setMonthData({
-          availableDates: data.availableDates,
-          unavailableDates: data.unavailableDates ?? [],
-          closedDates: data.closedDates ?? [],
-          workingHoursSummary: data.workingHoursSummary,
-        });
-        if (data.workingHoursSummary) {
-          setWorkingHoursSummary(data.workingHoursSummary);
+        const nextMonthData: MonthAvailability = {
+          availableDates: data.availableDates as string[],
+          unavailableDates: (data.unavailableDates as string[]) ?? [],
+          closedDates: (data.closedDates as string[]) ?? [],
+          workingHoursSummary:
+            typeof data.workingHoursSummary === "string"
+              ? data.workingHoursSummary
+              : undefined,
+          calendarBounds: data.calendarBounds as CalendarBounds | undefined,
+        };
+        setMonthData(nextMonthData);
+        const nextBounds = nextMonthData.calendarBounds ?? calendarBounds;
+        applyCalendarBounds(nextMonthData.calendarBounds, setCalendarBounds, setCurrentMonth);
+        setMonthNotice(
+          resolveMonthNotice(currentMonth, nextMonthData, nextBounds, merchantToday),
+        );
+        if (nextMonthData.workingHoursSummary) {
+          setWorkingHoursSummary(nextMonthData.workingHoursSummary);
         }
-        if (data.timezone) {
+        if (typeof data.timezone === "string") {
           setMerchantTimezone(data.timezone);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setMonthData(null);
-          setMonthError("Could not load availability");
+          setMonthError(t(labels, "widget.calendarLoadError"));
         }
       })
       .finally(() => {
@@ -273,25 +536,14 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
     return () => {
       cancelled = true;
     };
-  }, [state.serviceId, currentMonth, state.step, fetchApi]);
-
-  useEffect(() => {
-    if (monthLoading || !monthData || monthError || state.step < 3) return;
-    if (countSelectableDates(currentMonth, monthData) > 0) return;
-
-    const todayMonth = currentMonthKey();
-    if (currentMonth < todayMonth) {
-      setCurrentMonth(todayMonth);
-      return;
-    }
-
-    const [ty, tm] = todayMonth.split("-").map(Number);
-    const [cy, cm] = currentMonth.split("-").map(Number);
-    const monthDiff = (cy - ty) * 12 + (cm - tm);
-    if (monthDiff >= 12) return;
-
-    setCurrentMonth((month) => shiftMonth(month, 1));
-  }, [monthData, monthLoading, monthError, currentMonth, state.step]);
+  }, [
+    state.serviceId,
+    currentMonth,
+    state.step,
+    fetchApi,
+    labels,
+    merchantToday,
+  ]);
 
   useEffect(() => {
     if (!state.serviceId || !state.date) return;
@@ -301,11 +553,16 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
         if (data.timezone) setMerchantTimezone(data.timezone);
       })
       .catch(() => setSlots([]));
-  }, [state.serviceId, state.date, fetchApi]);
+  }, [state.serviceId, state.date, fetchApi, storefrontLocale]);
 
   useEffect(() => {
     function reportHeight() {
-      const height = Math.ceil(document.documentElement.scrollHeight);
+      const shell = document.querySelector(".ab-modern-shell");
+      const height = Math.ceil(
+        shell instanceof HTMLElement
+          ? shell.scrollHeight
+          : document.documentElement.scrollHeight,
+      );
       if (window.parent !== window) {
         window.parent.postMessage(
           { type: "ab-booking-widget-resize", height },
@@ -316,6 +573,10 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
     reportHeight();
     const observer = new ResizeObserver(reportHeight);
     observer.observe(document.body);
+    const shell = document.querySelector(".ab-modern-shell");
+    if (shell instanceof HTMLElement) {
+      observer.observe(shell);
+    }
     return () => observer.disconnect();
   }, [
     state.step,
@@ -324,10 +585,12 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
     state.date,
     services.length,
     meetingTypes.length,
+    meetingTypesLoading,
     slots.length,
     monthData,
     loading,
     error,
+    configReady,
   ]);
 
   useEffect(() => {
@@ -361,7 +624,7 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
   );
 
   const selectedService = services.find((s) => s.id === state.serviceId);
-  const calendarDays = buildCalendarDays(currentMonth, monthData);
+  const calendarDays = buildCalendarDays(currentMonth, monthData, merchantToday);
   const fullPhone = formatPhone(state.phoneCountryIso, state.phone);
   const showLocalTimezoneHint = userTimezone !== merchantTimezone;
 
@@ -372,6 +635,7 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
       time,
       merchantTimezone,
       userTimezone,
+      storefrontLocale,
     );
   }
 
@@ -382,26 +646,23 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
       state.startTime,
       merchantTimezone,
       userTimezone,
+      storefrontLocale,
     );
   }
 
   async function parseBookingResponse(res: Response) {
     const text = await res.text();
     if (!text) {
-      throw new Error("Empty response from booking server");
+      throw new Error(t(labels, "widget.errorEmptyResponse"));
     }
 
     try {
       return JSON.parse(text) as { booking?: { id: string }; error?: string };
     } catch {
       if (text.trimStart().startsWith("<")) {
-        throw new Error(
-          "Booking server returned an unexpected page instead of JSON. Try again in a moment.",
-        );
+        throw new Error(t(labels, "widget.errorUnexpectedPage"));
       }
-      throw new Error(
-        "Could not read the confirmation response. If you received an email, your booking was likely created.",
-      );
+      throw new Error(t(labels, "widget.errorReadResponse"));
     }
   }
 
@@ -429,11 +690,13 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
       });
 
       const data = await parseBookingResponse(res);
-      if (!res.ok) throw new Error(data.error ?? "Booking failed");
-      if (!data.booking?.id) throw new Error("Booking response was incomplete");
+      if (!res.ok) throw new Error(data.error ?? t(labels, "widget.errorBookingFailed"));
+      if (!data.booking?.id) {
+        throw new Error(t(labels, "widget.errorIncompleteResponse"));
+      }
       setState((s) => ({ ...s, step: 6, bookingId: data.booking!.id }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Booking failed");
+      setError(e instanceof Error ? e.message : t(labels, "widget.errorBookingFailed"));
     } finally {
       setLoading(false);
     }
@@ -441,11 +704,29 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
 
   function canProceed() {
     if (state.step === 1) return !!state.serviceId;
-    if (state.step === 2) return !!state.meetingTypeId;
+    if (state.step === 2) {
+      return (
+        !!state.meetingTypeId &&
+        meetingTypes.some((mt) => mt.id === state.meetingTypeId)
+      );
+    }
     if (state.step === 3) return !!state.date && !!state.startTime;
     if (state.step === 4)
       return !!state.firstName && !!state.lastName && !!state.email;
     return true;
+  }
+
+  function startNewBooking() {
+    setError("");
+    setMeetingTypes([]);
+    setMeetingTypesLoading(false);
+    setSlots([]);
+    setMonthData(null);
+    setCurrentMonth(currentMonthKey());
+    setState({
+      ...INITIAL_STATE,
+      phoneCountryIso: detectDefaultPhoneCountryIso(),
+    });
   }
 
   if (!configReady && !isPreview) {
@@ -460,35 +741,37 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
 
   const stepHeadings: Record<number, { title: string; subtitle: string }> = {
     1: {
-      title: runtimeSettings.step1Title || t(labels, "widget.selectService"),
+      title: t(labels, "widget.selectService") || runtimeSettings.step1Title || "",
       subtitle:
-        runtimeSettings.step1Subtitle ||
         t(labels, "widget.step1Subtitle") ||
-        runtimeSettings.subtitle,
+        runtimeSettings.step1Subtitle ||
+        runtimeSettings.subtitle ||
+        "",
     },
     2: {
-      title: runtimeSettings.step2Title || t(labels, "widget.selectMeetingType"),
-      subtitle: runtimeSettings.step2Subtitle || t(labels, "widget.step2Subtitle") || "",
+      title: t(labels, "widget.selectMeetingType") || runtimeSettings.step2Title || "",
+      subtitle: t(labels, "widget.step2Subtitle") || runtimeSettings.step2Subtitle || "",
     },
     3: {
-      title: runtimeSettings.step3Title || t(labels, "widget.selectDateTime"),
+      title: t(labels, "widget.selectDateTime") || runtimeSettings.step3Title || "",
       subtitle:
         themeText(runtimeSettings.step3Subtitle, STEP3_SUBTITLE_AUTO) ||
         workingHoursSummary ||
+        t(labels, "widget.step3Subtitle") ||
         "",
     },
     4: {
-      title: runtimeSettings.step4Title || t(labels, "widget.customerInfo"),
-      subtitle: runtimeSettings.step4Subtitle || t(labels, "widget.step4Subtitle") || "",
+      title: t(labels, "widget.customerInfo") || runtimeSettings.step4Title || "",
+      subtitle: t(labels, "widget.step4Subtitle") || runtimeSettings.step4Subtitle || "",
     },
     5: {
-      title: runtimeSettings.step5Title || t(labels, "widget.review"),
-      subtitle: runtimeSettings.step5Subtitle || t(labels, "widget.step5Subtitle") || "",
+      title: t(labels, "widget.review") || runtimeSettings.step5Title || "",
+      subtitle: t(labels, "widget.step5Subtitle") || runtimeSettings.step5Subtitle || "",
     },
   };
 
   const step3Intro =
-    runtimeSettings.step3Intro || t(labels, "widget.step3Intro") || "";
+    t(labels, "widget.step3Intro") || runtimeSettings.step3Intro || "";
 
   const stepContent = (
     <>
@@ -524,7 +807,15 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
         </div>
       )}
 
-      {state.step === 1 && (
+      {state.step === 1 && services.length === 0 && (
+        <div className="mb-8 rounded-sm border border-ab-border bg-neutral-50 px-4 py-6 text-center">
+          <p className="m-0 text-sm text-neutral-700">
+            {t(labels, "widget.noServices")}
+          </p>
+        </div>
+      )}
+
+      {state.step === 1 && services.length > 0 && (
         <div className={theme.cardGrid}>
           {services.map((service) => {
             const img = resolveImage(service.imageUrl, undefined, defaults);
@@ -561,151 +852,84 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
       )}
 
       {state.step === 2 && (
-        <div className={theme.cardGrid}>
-          {meetingTypes.map((mt) => {
-            const img = resolveImage(mt.imageUrl, mt.type, defaults);
-            const desc = meetingDescription(mt);
-            const selected = state.meetingTypeId === mt.id;
-            return (
-              <button
-                key={mt.id}
-                type="button"
-                className={theme.serviceCard(selected)}
-                onClick={() => setState((s) => ({ ...s, meetingTypeId: mt.id }))}
-              >
-                {img ? (
-                  <div className={theme.cardImageWrap}>
-                    <img src={img} alt="" className={cardImageClass} />
-                  </div>
-                ) : (
-                  <div className={cardImagePlaceholderClass} />
-                )}
-                <div className="px-[1.1rem] pb-5 pt-4">
-                  <h3 className={theme.cardTitle}>{mt.name}</h3>
-                  {mt.subtitle && (
-                    <p className="mb-2 text-xs text-ab-muted">{mt.subtitle}</p>
-                  )}
-                  {desc && (
-                    <p className="m-0 text-sm leading-normal text-neutral-700">{desc}</p>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {meetingTypesLoading ? (
+            <p className="mb-8 text-center text-sm text-ab-muted">
+              {t(labels, "widget.loading")}
+            </p>
+          ) : meetingTypes.length === 0 ? (
+            <div className="mb-8 rounded-sm border border-ab-border bg-neutral-50 px-4 py-6 text-center">
+              <p className="m-0 text-sm text-neutral-700">
+                {t(labels, "widget.noMeetingTypes")}
+              </p>
+            </div>
+          ) : (
+            <div className={theme.cardGrid}>
+              {meetingTypes.map((mt) => {
+                const img = resolveImage(mt.imageUrl, mt.type, defaults);
+                const desc = meetingDescription(mt);
+                const selected = state.meetingTypeId === mt.id;
+                return (
+                  <button
+                    key={mt.id}
+                    type="button"
+                    className={theme.serviceCard(selected)}
+                    onClick={() => setState((s) => ({ ...s, meetingTypeId: mt.id }))}
+                  >
+                    {img ? (
+                      <div className={theme.cardImageWrap}>
+                        <img src={img} alt="" className={cardImageClass} />
+                      </div>
+                    ) : (
+                      <div className={cardImagePlaceholderClass} />
+                    )}
+                    <div className="px-[1.1rem] pb-5 pt-4">
+                      <h3 className={theme.cardTitle}>{mt.name}</h3>
+                      {mt.subtitle && (
+                        <p className="mb-2 text-xs text-ab-muted">{mt.subtitle}</p>
+                      )}
+                      {desc && (
+                        <p className="m-0 text-sm leading-normal text-neutral-700">{desc}</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {state.step === 3 && (
-        <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
-          <div>
-            <div
-              className={cn(
-                "mb-4 flex items-center justify-between text-xl",
-                theme.id === "classic" ? "font-serif" : "font-bold tracking-tight",
-              )}
-            >
-              <button
-                type="button"
-                className="cursor-pointer border-0 bg-transparent px-2 py-1 text-xl text-ab-muted"
-                onClick={() => setCurrentMonth(shiftMonth(currentMonth, -1))}
-                aria-label="Previous month"
-              >
-                ‹
-              </button>
-              <span>{formatMonthLabel(currentMonth)}</span>
-              <button
-                type="button"
-                className="cursor-pointer border-0 bg-transparent px-2 py-1 text-xl text-ab-muted"
-                onClick={() => setCurrentMonth(shiftMonth(currentMonth, 1))}
-                aria-label="Next month"
-              >
-                ›
-              </button>
-            </div>
-            <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs text-ab-muted">
-              {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
-                <span key={d}>{d}</span>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {calendarDays.map((cell, i) => (
-                <button
-                  key={cell.date || `pad-${i}`}
-                  type="button"
-                  disabled={cell.status !== "available" || monthLoading}
-                  className={cn(
-                    "aspect-square rounded-sm border-0 bg-transparent text-sm",
-                    !cell.inMonth && "cursor-default text-neutral-300",
-                    cell.inMonth && cell.status === "available" &&
-                      "cursor-pointer text-neutral-900 hover:bg-neutral-100",
-                    cell.inMonth && cell.status === "past" &&
-                      "cursor-not-allowed text-neutral-300",
-                    cell.inMonth &&
-                      cell.status !== "available" &&
-                      cell.status !== "past" &&
-                      "cursor-default text-neutral-300",
-                    state.date === cell.date && "!bg-[var(--ab-accent)]",
-                  )}
-                  onClick={() =>
-                    setState((s) => ({ ...s, date: cell.date, startTime: "" }))
-                  }
-                >
-                  {cell.day}
-                </button>
-              ))}
-            </div>
-            {monthLoading && (
-              <p className="mt-2 text-xs text-ab-muted">
-                {t(labels, "widget.loadingAvailability")}
-              </p>
-            )}
-            {monthError && !monthLoading && (
-              <p className="mt-2 text-xs text-ab-muted">{monthError}</p>
-            )}
-          </div>
-          <div>
-            <h4
-              className={cn(
-                "mb-4 text-lg",
-                theme.id === "classic" ? "font-serif" : "font-bold tracking-tight",
-              )}
-            >
-              {t(labels, "widget.availableTimes")}
-            </h4>
-            {showLocalTimezoneHint && (
-              <p className="mb-2 text-xs text-ab-muted">
-                {interpolateLabel(t(labels, "widget.timezoneHint"), {
-                  timezone: formatTimezoneShort(userTimezone),
-                })}
-              </p>
-            )}
-            {!state.date ? (
-              <p className="text-xs text-ab-muted">{t(labels, "widget.selectDateFirst")}</p>
-            ) : slots.length === 0 ? (
-              <p className="text-xs text-ab-muted">{t(labels, "widget.noSlots")}</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {slots.map((slot) => (
-                  <button
-                    key={slot.startTime}
-                    type="button"
-                    className={cn(
-                      "cursor-pointer rounded-sm border-0 bg-neutral-100 px-2 py-2.5 text-sm transition-all duration-150",
-                      "hover:bg-neutral-200 hover:shadow-sm",
-                      state.startTime === slot.startTime &&
-                        "bg-transparent shadow-sm ring-2 ring-[var(--ab-primary)]",
-                    )}
-                    onClick={() =>
-                      setState((s) => ({ ...s, startTime: slot.startTime }))
-                    }
-                  >
-                    {formatSlotTime(slot.startTime)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <DateTimeStep
+          theme={theme}
+          labels={labels}
+          t={t}
+          selectedService={selectedService}
+          selectedDate={state.date}
+          selectedTime={state.startTime}
+          calendarDays={calendarDays}
+          currentMonth={currentMonth}
+          onMonthChange={handleMonthChange}
+          onSelectDate={(date) =>
+            setState((s) => ({ ...s, date, startTime: "" }))
+          }
+          onSelectTime={(startTime) => setState((s) => ({ ...s, startTime }))}
+          slots={slots}
+          monthLoading={monthLoading}
+          monthError={monthError}
+          monthNotice={monthNotice}
+          minMonth={calendarBounds.minMonth}
+          maxMonth={calendarBounds.maxMonth}
+          formatSlotTime={formatSlotTime}
+          formatSelectedDateLabel={(date) =>
+            formatShortDateLabel(date, runtimeSettings.locale)
+          }
+          merchantTimezone={merchantTimezone}
+          userTimezone={userTimezone}
+          showLocalTimezoneHint={showLocalTimezoneHint}
+          locale={storefrontLocale}
+        />
       )}
 
       {state.step === 4 && (
@@ -757,6 +981,9 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
                     setState((s) => ({ ...s, phoneCountryIso }))
                   }
                   className={theme.phoneCountrySelect}
+                  ariaLabel={t(labels, "widget.countryCodeAria")}
+                  popularLabel={t(labels, "widget.popularCountries")}
+                  allCountriesLabel={t(labels, "widget.allCountries")}
                 />
               </div>
               <div className="min-w-0 flex-1">
@@ -838,6 +1065,15 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
           <p className={theme.subtitle}>
             {selectedService?.name} · {formatSelectedDateTime()}
           </p>
+          {!isPreview && (
+            <button
+              type="button"
+              className={cn(theme.primaryButton, "mt-6")}
+              onClick={startNewBooking}
+            >
+              {t(labels, "widget.bookAnother")}
+            </button>
+          )}
         </div>
       )}
 
@@ -910,6 +1146,7 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
             total={5}
             theme={theme}
             stepsMeta={stepMeta}
+            ariaLabel={t(labels, "widget.stepperAriaLabel")}
           />
           <div
             ref={mainPanelRef}
@@ -917,7 +1154,9 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
             className={theme.mainPanel}
           >
             <div className={theme.stepBadge}>
-              Step {state.step}/5
+              {t(labels, "widget.stepProgress")
+                .replace("{step}", String(state.step))
+                .replace("{total}", "5")}
             </div>
             {stepContent}
           </div>
@@ -925,7 +1164,12 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
       ) : (
         <>
           {state.step < 6 && (
-            <StepperHorizontal current={state.step} total={5} theme={theme} />
+            <StepperHorizontal
+              current={state.step}
+              total={5}
+              theme={theme}
+              ariaLabel={t(labels, "widget.stepperAriaLabel")}
+            />
           )}
           {stepContent}
         </>
@@ -933,7 +1177,7 @@ export function BookingWidget({ shop, apiBase, settings: initialSettings }: Prop
 
       {isPreview && (
         <p className="mt-4 text-center text-xs text-ab-muted">
-          Storefront preview — sample services shown for appearance only.
+          {t(labels, "widget.previewBanner")}
         </p>
       )}
     </div>

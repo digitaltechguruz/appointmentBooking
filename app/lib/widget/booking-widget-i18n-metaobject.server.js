@@ -24,6 +24,16 @@ const LANGUAGE_LABEL_BY_CODE = Object.fromEntries(
   SUPPORTED_LANGUAGES.map((l) => [l.value, l.label]),
 );
 
+const TRANSLATION_FIELD_KEY_SET = new Set(TRANSLATION_FIELDS.map((field) => field.key));
+
+/** Translation field keys stored on this metaobject entry (excludes language display). */
+function translationFieldKeysOnEntry(entry) {
+  if (!entry?.fields?.length) return [];
+  return entry.fields
+    .map((field) => field.key)
+    .filter((key) => key && key !== LANGUAGE_FIELD_KEY && TRANSLATION_FIELD_KEY_SET.has(key));
+}
+
 /** Serialize metaobject entry ensure per shop + type (prevents parallel duplicate creates). */
 const widgetTextEntryLocks = new Map();
 
@@ -184,17 +194,30 @@ function widgetTextEntryIsPopulated(entry) {
   return TRANSLATION_FIELDS.some((field) => Boolean(stored[field.key]?.trim()));
 }
 
-/** Stricter check — all translatable widget fields must have content. */
+/** Stricter check — all translation fields on this entry must have content. */
 function widgetTextEntryIsFullyPopulated(entry) {
   if (!entry?.id) return false;
   const stored = parseMetaobjectFields(entry.fields);
-  return TRANSLATION_FIELDS.every((field) => Boolean(stored[field.key]?.trim()));
+  const keysOnEntry = translationFieldKeysOnEntry(entry);
+  const fieldsToCheck =
+    keysOnEntry.length > 0
+      ? TRANSLATION_FIELDS.filter((field) => keysOnEntry.includes(field.key))
+      : TRANSLATION_FIELDS;
+  return (
+    fieldsToCheck.length > 0 &&
+    fieldsToCheck.every((field) => Boolean(stored[field.key]?.trim()))
+  );
 }
 
 function widgetTextEntryNeedsBackfill(entry) {
   if (!entry?.id) return true;
   const stored = parseMetaobjectFields(entry.fields);
-  return TRANSLATION_FIELDS.some((field) => !stored[field.key]?.trim());
+  const keysOnEntry = translationFieldKeysOnEntry(entry);
+  const fieldsToCheck =
+    keysOnEntry.length > 0
+      ? TRANSLATION_FIELDS.filter((field) => keysOnEntry.includes(field.key))
+      : TRANSLATION_FIELDS;
+  return fieldsToCheck.some((field) => !stored[field.key]?.trim());
 }
 
 async function queryShopLocales(admin) {
@@ -1447,8 +1470,16 @@ async function ensureDefaultWidgetTextEntryUnlocked(
     entry;
 
   if (!entry?.id || !widgetTextEntryIsFullyPopulated(entry)) {
+    const keysOnEntry = translationFieldKeysOnEntry(entry);
+    const missingCount = keysOnEntry.filter((key) => {
+      const stored = parseMetaobjectFields(entry?.fields);
+      return !stored[key]?.trim();
+    }).length;
     throw new Error(
-      `Default widget text entry could not be created on ${metaobjectType}. Check write_metaobjects scope and re-open Settings.`,
+      `Default widget text entry could not be created on ${metaobjectType}.` +
+        (missingCount > 0
+          ? ` ${missingCount} field(s) still empty on the Default entry.`
+          : " Check write_metaobjects scope and re-open Settings."),
     );
   }
 
@@ -1710,21 +1741,20 @@ async function resolveWidgetI18nFromEntry(
   const baseStored = parseMetaobjectFields(entry.fields);
   const isPrimary = localesEquivalent(localeCode, primaryLocaleCode);
 
+  const defaultContentLanguage =
+    mapToSupportedLanguage(localeToLanguage(primaryLocaleCode)) || seedLanguage;
+  const primaryValues = buildTranslationValues(defaultContentLanguage, baseStored);
+
   let translationValues;
   if (isPrimary) {
-    translationValues = buildTranslationValues(languageKey, baseStored);
+    translationValues = primaryValues;
   } else {
     const localized = await fetchLocaleTranslations(admin, entry.id, localeCode);
-    const hasLocalizedContent = TRANSLATION_FIELDS.some((field) =>
-      Boolean(localized[field.key]?.trim()),
-    );
-    if (hasLocalizedContent) {
-      translationValues = buildTranslationValues(languageKey, {
-        ...baseStored,
-        ...localized,
-      });
-    } else {
-      translationValues = buildTranslationValues(languageKey, {});
+    translationValues = {};
+    for (const field of TRANSLATION_FIELDS) {
+      const localizedVal = localized[field.key]?.trim();
+      translationValues[field.key] =
+        localizedVal || primaryValues[field.key] || "";
     }
   }
 

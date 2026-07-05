@@ -529,30 +529,57 @@ export async function resolveCatalogTextForStorefront(
   shopLocale,
   shopDomain,
   fallback = {},
+  shopContext = null,
 ) {
-  const config = CATALOG_KINDS[kind];
-  const definition = await resolveCatalogDefinition(admin, kind);
-  if (!definition?.type) return { ...fallback };
+  try {
+    const config = CATALOG_KINDS[kind];
+    if (!config) return { ...fallback };
 
-  const entry = await getCatalogEntryByHandle(admin, definition.type, entityId);
-  if (!entry?.id) return { ...fallback };
-
-  const { locale: primaryLocaleCode } = await fetchShopPrimaryLocale(admin, shopDomain);
-  const localeCode = normalizeShopLocale(shopLocale) || primaryLocaleCode;
-  const baseMap = parseMetaobjectFieldMap(entry.fields);
-  let values = { ...fallback, ...baseMap };
-
-  if (!localesEquivalent(localeCode, primaryLocaleCode)) {
-    const localized = await fetchLocaleTranslations(admin, entry.id, localeCode);
-    const hasLocalized = config.fields.some((field) =>
-      Boolean(localized[field.key]?.trim()),
-    );
-    if (hasLocalized) {
-      values = { ...values, ...localized };
+    let definition = shopContext?.definitionCache?.get(kind);
+    if (definition === undefined) {
+      definition = await resolveCatalogDefinition(admin, kind);
+      if (shopContext?.definitionCache) {
+        shopContext.definitionCache.set(kind, definition);
+      }
     }
-  }
+    if (!definition?.type) return { ...fallback };
 
-  return values;
+    const entry = await getCatalogEntryByHandle(admin, definition.type, entityId);
+    if (!entry?.id) return { ...fallback };
+
+    let primaryLocaleCode = shopContext?.primaryLocaleCode;
+    if (!primaryLocaleCode) {
+      const primary = await fetchShopPrimaryLocale(admin, shopDomain);
+      primaryLocaleCode = primary.locale;
+      if (shopContext) {
+        shopContext.primaryLocaleCode = primaryLocaleCode;
+      }
+    }
+
+    const localeCode = normalizeShopLocale(shopLocale) || primaryLocaleCode;
+    const baseMap = parseMetaobjectFieldMap(entry.fields);
+    let values = { ...fallback, ...baseMap };
+
+    if (!localesEquivalent(localeCode, primaryLocaleCode)) {
+      const localized = await fetchLocaleTranslations(admin, entry.id, localeCode);
+      for (const field of config.fields) {
+        const translated = localized[field.key]?.trim();
+        if (translated) {
+          values[field.key] = translated;
+        }
+      }
+    }
+
+    return values;
+  } catch (error) {
+    console.warn(
+      "[catalog] resolveCatalogTextForStorefront",
+      kind,
+      entityId,
+      error instanceof Error ? error.message : error,
+    );
+    return { ...fallback };
+  }
 }
 
 export { translateAndAdaptMetaobjectUrl };

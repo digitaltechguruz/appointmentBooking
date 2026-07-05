@@ -27,6 +27,7 @@ import {
   bookingRescheduleSchema,
 } from "../lib/validation/schemas";
 import { showAppToast, useFetcherIdleResult } from "../lib/admin/toast";
+import { useAdminI18n } from "../lib/admin-i18n";
 import { formatTimezoneShort } from "../lib/booking/timezone";
 import "../components/admin/bookings.css";
 
@@ -605,6 +606,7 @@ function RescheduleDrawer({
 export default function BookingsPage() {
   const { bookings, total, services, stats, filters, timezone } =
     useLoaderData<typeof loader>();
+  const { t } = useAdminI18n();
   const fetcher = useFetcher<typeof action>();
   const slotsFetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
@@ -692,7 +694,7 @@ export default function BookingsPage() {
   };
 
   return (
-    <s-page heading="Bookings">
+    <s-page heading={t("bookings.pageTitle")}>
       <div className="ab-bookings">
         <div className="ab-bookings__stats">
           <div className="ab-bookings__stat">

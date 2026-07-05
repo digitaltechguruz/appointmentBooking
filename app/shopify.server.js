@@ -2,7 +2,6 @@ import "@shopify/shopify-app-react-router/adapters/node";
 import {
   ApiVersion,
   AppDistribution,
-  BillingInterval,
   shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
@@ -17,46 +16,6 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
-  billing: {
-    "Annual Premium": {
-      lineItems: [
-        {
-          amount: 99,
-          currencyCode: "USD",
-          interval: BillingInterval.Annual,
-        },
-      ],
-    },
-    "Shopify Test": {
-      lineItems: [
-        {
-          amount: 0.01,
-          currencyCode: "USD",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-      test: true,
-    },
-    Test: {
-      lineItems: [
-        {
-          amount: 0.01,
-          currencyCode: "USD",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-      test: true,
-    },
-    "Legacy Access": {
-      lineItems: [
-        {
-          amount: 0,
-          currencyCode: "USD",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-    },
-  },
   future: {
     expiringOfflineAccessTokens: true,
   },

@@ -1,9 +1,11 @@
 import prisma from "../db.server";
 import type { MeetingType, MeetingTypeKind, Prisma } from "@prisma/client";
+import { meetingTypeHasVideoLink } from "../lib/constants";
 import {
   getIntegrationConnections,
   isMeetingTypeIntegrationAvailable,
 } from "../lib/integrations/status.server";
+import { hasPremiumAccess } from "./subscription.server";
 
 export async function listMeetingTypes(
   merchantId: string,
@@ -109,9 +111,24 @@ export async function listMeetingTypesForService(
     },
     include: { meetingType: true },
   });
-  const connections = await getIntegrationConnections(merchantId);
 
-  return links
-    .map((link) => link.meetingType)
-    .filter((mt) => isMeetingTypeIntegrationAvailable(mt, connections));
+  return links.map((link) => link.meetingType);
+}
+
+/** Storefront list — hides video meeting types without Pro + a connected integration. */
+export async function listStorefrontMeetingTypesForService(
+  merchantId: string,
+  serviceId: string,
+) {
+  const types = await listMeetingTypesForService(merchantId, serviceId);
+  const [connections, premium] = await Promise.all([
+    getIntegrationConnections(merchantId),
+    hasPremiumAccess(merchantId),
+  ]);
+
+  return types.filter((mt) => {
+    if (!meetingTypeHasVideoLink(mt)) return true;
+    if (!premium) return false;
+    return isMeetingTypeIntegrationAvailable(mt, connections);
+  });
 }

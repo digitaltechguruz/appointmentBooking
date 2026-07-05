@@ -115,38 +115,56 @@ export const DEFAULT_WORKING_HOURS = {
 
 export const SLOT_INTERVAL_MINUTES = 30;
 
+export const HOLIDAYS_PREMIUM_MESSAGE =
+  "Upgrade to Pro to set holidays and special hours.";
+
+export const INTEGRATIONS_PREMIUM_MESSAGE =
+  "Upgrade to Pro to use Zoom and Google Calendar integrations.";
+
 export const BILLING_PLANS = {
   FREE: {
     plan: SubscriptionPlan.FREE,
-    name: "Free Plan",
-    bookingLimit: 10,
-    features: ["Limited bookings", "Basic functionality"],
+    handle: "free-plan",
+    name: "Free",
+    priceLabel: "Free",
+    bookingLimit: null,
+    integrations: false,
+    features: [
+      "Unlimited bookings",
+      "Services, availability & meeting types",
+      "Storefront booking widget",
+      "Email confirmations",
+    ],
+  },
+  PRO: {
+    plan: SubscriptionPlan.PRO,
+    handle: "pro",
+    name: "Pro",
+    priceLabel: "$3/month",
+    bookingLimit: null,
+    integrations: true,
+    features: [
+      "Unlimited bookings",
+      "Holidays & special hours",
+      "Zoom & Google Calendar integrations",
+      "Automatic video meeting links",
+      "Full widget & translation features",
+    ],
   },
   SHOPIFY_TEST: {
     plan: SubscriptionPlan.SHOPIFY_TEST,
-    name: "Shopify Test Plan",
+    handle: "shopify-test",
+    name: "Shopify Test",
+    priceLabel: "$0/month",
     bookingLimit: null,
-    features: ["Development testing"],
-  },
-  TEST: {
-    plan: SubscriptionPlan.TEST,
-    name: "Test Plan",
-    bookingLimit: null,
-    features: ["Development testing"],
-  },
-  LEGACY_ACCESS: {
-    plan: SubscriptionPlan.LEGACY_ACCESS,
-    name: "Legacy Access",
-    bookingLimit: null,
-    features: ["Grandfathered premium access"],
-  },
-  ANNUAL_PREMIUM: {
-    plan: SubscriptionPlan.ANNUAL_PREMIUM,
-    name: "Annual Premium Plan",
-    bookingLimit: null,
-    features: ["Unlimited bookings", "All integrations", "Priority support"],
+    integrations: true,
+    features: ["Same access as Pro (private plan for Shopify review)"],
+    private: true,
   },
 } as const;
+
+/** Plans shown on the in-app billing page (public plans only). */
+export const PUBLIC_BILLING_PLANS = [BILLING_PLANS.FREE, BILLING_PLANS.PRO] as const;
 
 export const DEFAULT_TRANSLATION_KEYS = [
   "widget.title",
@@ -184,10 +202,33 @@ export const DEFAULT_TRANSLATION_KEYS = [
   "widget.duration",
   "widget.minutes",
   "widget.availableTimes",
+  "widget.timezoneLabel",
   "widget.timezoneHint",
   "widget.selectDateFirst",
   "widget.loading",
   "widget.loadingAvailability",
+  "widget.calendarPastLimit",
+  "widget.calendarFutureLimit",
+  "widget.calendarFutureLimitGeneric",
+  "widget.calendarNoDates",
+  "widget.calendarLoadError",
+  "widget.noMeetingTypes",
+  "widget.bookAnother",
+  "widget.previousMonth",
+  "widget.nextMonth",
+  "widget.stepperAriaLabel",
+  "widget.countryCodeAria",
+  "widget.popularCountries",
+  "widget.allCountries",
+  "widget.errorLoadWidget",
+  "widget.errorBookingFailed",
+  "widget.errorEmptyResponse",
+  "widget.errorUnexpectedPage",
+  "widget.errorReadResponse",
+  "widget.errorIncompleteResponse",
+  "widget.errorRequestFailed",
+  "widget.stepProgress",
+  "widget.previewBanner",
   "widget.reviewAppointment",
   "widget.reviewDateTime",
   "widget.reviewFullName",

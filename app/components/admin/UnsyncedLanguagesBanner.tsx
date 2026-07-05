@@ -25,7 +25,7 @@ export function UnsyncedLanguagesBanner({ locales }: Props) {
           <s-paragraph>
             {t("banner.unsyncedMessage", { names })}
           </s-paragraph>
-          <AppLink to="/app/settings">
+          <AppLink to="/app/settings/languages">
             <s-button variant="secondary">{t("banner.goToSettings")}</s-button>
           </AppLink>
         </s-stack>

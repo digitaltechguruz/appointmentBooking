@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import type { Prisma } from "@prisma/client";
+import type { ServiceBookingRulesInput } from "../lib/booking/booking-rules.server";
 
 export async function listServices(merchantId: string, activeOnly = false) {
   return prisma.service.findMany({
@@ -25,6 +26,40 @@ export async function getService(merchantId: string, serviceId: string) {
   });
 }
 
+function bookingRulesToServiceData(
+  bookingRules?: ServiceBookingRulesInput,
+): Prisma.ServiceUpdateInput {
+  if (!bookingRules) return {};
+
+  if (!bookingRules.useCustomBookingRules) {
+    return {
+      useCustomBookingRules: false,
+      slotIntervalMinutes: null,
+      minNoticeMinutes: null,
+      maxAdvanceDays: null,
+      bufferBeforeMinutes: null,
+      bufferAfterMinutes: null,
+      maxBookingsPerDay: null,
+      maxBookingsPerSlot: null,
+      lookBusyEnabled: null,
+      lookBusyPercent: null,
+    };
+  }
+
+  return {
+    useCustomBookingRules: true,
+    slotIntervalMinutes: bookingRules.slotIntervalMinutes ?? null,
+    minNoticeMinutes: bookingRules.minNoticeMinutes ?? null,
+    maxAdvanceDays: bookingRules.maxAdvanceDays ?? null,
+    bufferBeforeMinutes: bookingRules.bufferBeforeMinutes ?? null,
+    bufferAfterMinutes: bookingRules.bufferAfterMinutes ?? null,
+    maxBookingsPerDay: bookingRules.maxBookingsPerDay ?? null,
+    maxBookingsPerSlot: bookingRules.maxBookingsPerSlot ?? null,
+    lookBusyEnabled: bookingRules.lookBusyEnabled ?? null,
+    lookBusyPercent: bookingRules.lookBusyPercent ?? null,
+  };
+}
+
 export async function createService(
   merchantId: string,
   data: {
@@ -34,6 +69,7 @@ export async function createService(
     durationMinutes: number;
     active: boolean;
     meetingTypeIds?: string[];
+    bookingRules?: ServiceBookingRulesInput;
   },
 ) {
   return prisma.service.create({
@@ -44,6 +80,7 @@ export async function createService(
       imageUrl: data.imageUrl || null,
       durationMinutes: data.durationMinutes,
       active: data.active,
+      ...bookingRulesToServiceData(data.bookingRules),
       meetingTypes: data.meetingTypeIds?.length
         ? {
             create: data.meetingTypeIds.map((meetingTypeId) => ({
@@ -68,6 +105,7 @@ export async function updateService(
     durationMinutes?: number;
     active?: boolean;
     meetingTypeIds?: string[];
+    bookingRules?: ServiceBookingRulesInput;
   },
 ) {
   const updates: Prisma.ServiceUpdateInput = {};
@@ -77,6 +115,9 @@ export async function updateService(
   if (data.durationMinutes !== undefined)
     updates.durationMinutes = data.durationMinutes;
   if (data.active !== undefined) updates.active = data.active;
+  if (data.bookingRules !== undefined) {
+    Object.assign(updates, bookingRulesToServiceData(data.bookingRules));
+  }
 
   if (data.meetingTypeIds !== undefined) {
     await prisma.serviceMeetingType.deleteMany({

@@ -26,6 +26,24 @@ export function getUserTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
+/** Calendar date YYYY-MM-DD for "now" in a merchant IANA timezone. */
+export function todayInTimezone(timeZone: string) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  }
+}
+
 export function merchantLocalToUtc(
   dateStr: string,
   timeStr: string,
@@ -58,10 +76,11 @@ export function formatMerchantTimeForZone(
   timeStr: string,
   merchantTimeZone: string,
   displayTimeZone: string,
+  locale?: string,
   hour12 = true,
 ): string {
   const instant = merchantLocalToUtc(dateStr, timeStr, merchantTimeZone);
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: displayTimeZone,
     hour: "numeric",
     minute: "2-digit",
@@ -74,10 +93,11 @@ export function formatMerchantDateTimeForZone(
   timeStr: string,
   merchantTimeZone: string,
   displayTimeZone: string,
+  locale?: string,
   hour12 = true,
 ): string {
   const instant = merchantLocalToUtc(dateStr, timeStr, merchantTimeZone);
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     timeZone: displayTimeZone,
     month: "long",
     day: "numeric",
@@ -88,9 +108,9 @@ export function formatMerchantDateTimeForZone(
   }).format(instant);
 }
 
-export function formatTimezoneShort(timeZone: string) {
+export function formatTimezoneShort(timeZone: string, locale?: string) {
   try {
-    const parts = new Intl.DateTimeFormat(undefined, {
+    const parts = new Intl.DateTimeFormat(locale, {
       timeZone,
       timeZoneName: "short",
     }).formatToParts(new Date());
